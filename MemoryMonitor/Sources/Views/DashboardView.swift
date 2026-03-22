@@ -1,112 +1,122 @@
 import SwiftUI
 
-/// Main dashboard with comprehensive health monitoring
+/// Main dashboard — tabs: Health, Memory, Developer, Security, More, Settings
+/// Premium implementation with consistent design system and micro-interactions
 struct DashboardView: View {
     @ObservedObject var manager = MemoryMonitorManager.shared
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
-    @State private var selectedTab: Tab = .overview
+    @State private var selectedTab: Tab = .health
+    @State private var isViewVisible = false
 
     enum Tab: String, CaseIterable {
-        case overview = "Overview"
+        case health = "Health"
         case memory = "Memory"
-        case cpu = "CPU"
-        case disk = "Disk"
-        case network = "Network"
-        case processes = "Processes"
-        case guard_ = "Guard"
+        case system = "System"
+        case optimizer = "Optimizer"
+        case developer = "Developer"
+        case security = "Security"
 
         var icon: String {
             switch self {
-            case .overview: return "square.grid.2x2"
+            case .health: return "heart.text.square.fill"
             case .memory: return "memorychip"
-            case .cpu: return "cpu"
-            case .disk: return "internaldrive"
-            case .network: return "wifi"
-            case .processes: return "list.bullet.rectangle"
-            case .guard_: return "shield.checkered"
+            case .system: return "cpu"
+            case .optimizer: return "sparkles"
+            case .developer: return "terminal.fill"
+            case .security: return "shield.checkered"
             }
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top bar with health score
             topBar
-
+                .staggeredEntrance(delay: 0)
             Divider()
-
-            // Sidebar + Content
             HStack(spacing: 0) {
-                // Sidebar navigation
                 sidebar
-
+                    .staggeredEntrance(delay: 0.05)
                 Divider()
-
-                // Main content
                 ScrollView {
                     contentSection
-                        .padding(20)
+                        .padding(DesignSystem.Spacing.lg)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
         .frame(minWidth: 800, idealWidth: 900, minHeight: 600, idealHeight: 650)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            withAnimation(DesignSystem.Animation.entrance) {
+                isViewVisible = true
+            }
+        }
     }
 
     // MARK: - Top Bar
 
     private var topBar: some View {
-        HStack(spacing: 16) {
-            // Health score
-            HStack(spacing: 10) {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            // Brand
+            HStack(spacing: DesignSystem.Spacing.sm) {
                 ZStack {
                     Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 4)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 3)
                     Circle()
                         .trim(from: 0, to: CGFloat(manager.healthScore) / 100.0)
-                        .stroke(scoreColor.gradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .stroke(scoreColor.gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
+                        .animation(DesignSystem.Animation.emphasis, value: manager.healthScore)
                     Text(manager.healthGrade)
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(scoreColor)
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: 28, height: 28)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Mac Health")
-                        .font(.caption.bold())
-                    Text("Score: \(manager.healthScore)/100")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+                Text(Brand.name)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
             }
-
-            Divider().frame(height: 30)
-
-            // Quick stats
-            if let memory = systemMonitor.currentMemory {
-                QuickStatPill(icon: "memorychip", value: String(format: "%.0f%%", memory.usedPercentage), color: memoryColor)
-            }
-            QuickStatPill(icon: "cpu", value: String(format: "%.0f%%", manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage), color: cpuColor)
-            if let disk = manager.diskMonitor.primaryDisk {
-                QuickStatPill(icon: "internaldrive", value: String(format: "%.0f%%", disk.usedPercentage), color: diskColor)
-            }
-            QuickStatPill(icon: "thermometer", value: manager.healthMonitor.thermalState, color: thermalColor)
 
             Spacer()
 
-            // Actions
+            // Optimize button — premium style
             Button {
-                manager.killTopMemoryProcess()
+                HapticFeedback.medium()
+                manager.freeRAM()
             } label: {
-                Label("Kill Top", systemImage: "xmark.circle")
+                if manager.optimizer.isWorking {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Optimizing...")
+                            .font(DesignSystem.Typography.caption)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Optimize")
+                            .font(DesignSystem.Typography.caption)
+                    }
+                }
             }
-            .buttonStyle(.bordered)
-            .tint(.red)
-            .disabled(manager.processMonitor.topProcesses.isEmpty)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color.accentColor.gradient)
+            )
+            .foregroundColor(.white)
+            .shadow(color: Color.accentColor.opacity(0.25), radius: 3, y: 1)
+            .disabled(manager.optimizer.isWorking)
+            .scaleEffect(manager.optimizer.isWorking ? 1.0 : 1.0)
+            .animation(DesignSystem.Animation.micro, value: manager.optimizer.isWorking)
 
+            // Refresh
             Button {
+                HapticFeedback.light()
                 manager.processMonitor.refresh(topN: manager.settings.topProcessesCount)
                 manager.systemMonitor.updateMemoryInfo()
                 manager.cpuMonitor.update()
@@ -114,57 +124,83 @@ struct DashboardView: View {
                 manager.healthMonitor.update()
             } label: {
                 Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .medium))
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .padding(6)
+            .background(
+                Circle()
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .foregroundColor(.secondary)
+            .hoverEffect()
+            
+            // Settings button
+            Button {
+                openSettingsWindow()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .background(
+                Circle()
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .foregroundColor(.secondary)
+            .hoverEffect()
+            .keyboardShortcut(",", modifiers: .command)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
     }
 
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: DesignSystem.Spacing.sm) {
             ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: tab.icon)
-                            .frame(width: 18)
-                        Text(tab.rawValue)
-                            .font(.system(.body, weight: selectedTab == tab ? .semibold : .regular))
-                        Spacer()
-                    }
-                    .foregroundColor(selectedTab == tab ? .white : .primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        selectedTab == tab
-                            ? Color.accentColor
-                            : Color.clear
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
+                sidebarTab(tab)
             }
 
             Spacer()
 
-            // Battery at bottom
-            HStack(spacing: 6) {
-                Image(systemName: batteryIcon)
-                    .foregroundColor(batteryColor)
-                Text(String(format: "%.0f%%", manager.healthMonitor.batteryPercentage))
-                    .font(.system(.caption, design: .rounded, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .font(.caption)
+            // Battery
+            BatteryStatusView(
+                percentage: manager.healthMonitor.batteryPercentage,
+                isCharging: manager.healthMonitor.isCharging
+            )
+            .padding(.top, DesignSystem.Spacing.sm)
         }
-        .padding(8)
-        .frame(width: 160)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .frame(width: 80)
+        .background(.ultraThinMaterial)
+    }
+
+    private func sidebarTab(_ tab: Tab) -> some View {
+        Button {
+            HapticFeedback.light()
+            withAnimation(DesignSystem.Animation.standard) { selectedTab = tab }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .regular))
+                    .contentTransition(.symbolEffect(.replace))
+                Text(tab.rawValue)
+                    .font(.system(size: 9, weight: selectedTab == tab ? .semibold : .regular, design: .rounded))
+            }
+            .frame(width: 68)
+            .padding(.vertical, DesignSystem.Spacing.sm)
+            .foregroundColor(selectedTab == tab ? .white : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.small)
+                    .fill(selectedTab == tab ? Color.accentColor : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Content
@@ -172,75 +208,43 @@ struct DashboardView: View {
     @ViewBuilder
     private var contentSection: some View {
         switch selectedTab {
-        case .overview:
-            OverviewContent()
+        case .health:
+            HealthView()
+                .staggeredEntrance(delay: 0.1)
         case .memory:
             MemorySection()
-        case .cpu:
-            CPUView()
-        case .disk:
-            DiskView()
-        case .network:
-            VStack(spacing: 20) {
-                NetworkView()
-                BatteryThermalView()
-            }
-        case .processes:
-            ProcessListView()
-        case .guard_:
-            AutoKillView()
+                .staggeredEntrance(delay: 0.1)
+        case .system:
+            SystemView()
+                .staggeredEntrance(delay: 0.1)
+        case .optimizer:
+            OptimizerView()
+                .staggeredEntrance(delay: 0.1)
+        case .developer:
+            DeveloperView()
+                .staggeredEntrance(delay: 0.1)
+        case .security:
+            SecurityView()
+                .staggeredEntrance(delay: 0.1)
         }
     }
 
-    // MARK: - Computed Colors
+    // MARK: - Helpers
 
     private var scoreColor: Color {
-        switch manager.healthScore {
-        case 90...100: return .green
-        case 80..<90: return .blue
-        case 70..<80: return .yellow
-        case 50..<70: return .orange
-        default: return .red
+        DesignSystem.Colors.score(manager.healthScore)
+    }
+
+    private func openSettingsWindow() {
+        // Open the settings window
+        for window in NSApp.windows {
+            if window.title == "Settings" {
+                window.makeKeyAndOrderFront(nil)
+                return
+            }
         }
-    }
-
-    private var memoryColor: Color {
-        guard let mem = systemMonitor.currentMemory else { return .gray }
-        return mem.usedPercentage > 85 ? .red : mem.usedPercentage > 75 ? .orange : .green
-    }
-
-    private var cpuColor: Color {
-        let cpu = manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage
-        return cpu > 80 ? .red : cpu > 50 ? .orange : .green
-    }
-
-    private var diskColor: Color {
-        guard let disk = manager.diskMonitor.primaryDisk else { return .gray }
-        return disk.usedPercentage > 90 ? .red : disk.usedPercentage > 75 ? .orange : .green
-    }
-
-    private var thermalColor: Color {
-        switch manager.healthMonitor.thermalState {
-        case "Nominal": return .green
-        case "Fair": return .yellow
-        case "Serious": return .orange
-        case "Critical": return .red
-        default: return .gray
-        }
-    }
-
-    private var batteryIcon: String {
-        let pct = manager.healthMonitor.batteryPercentage
-        if pct > 75 { return "battery.100" }
-        if pct > 50 { return "battery.75" }
-        if pct > 25 { return "battery.50" }
-        return "battery.25"
-    }
-
-    private var batteryColor: Color {
-        let pct = manager.healthMonitor.batteryPercentage
-        if manager.healthMonitor.isCharging { return .green }
-        return pct > 20 ? .green : .red
+        // If not found, activate app and show
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -252,60 +256,18 @@ struct QuickStatPill: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DesignSystem.Spacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
                 .foregroundColor(color)
             Text(value)
-                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .font(DesignSystem.Typography.caption)
+                .fontWeight(.semibold)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .padding(.vertical, DesignSystem.Spacing.xs)
         .background(color.opacity(0.1))
         .clipShape(Capsule())
-    }
-}
-
-// MARK: - Overview Content
-
-struct OverviewContent: View {
-    @ObservedObject var manager = MemoryMonitorManager.shared
-
-    var body: some View {
-        VStack(spacing: 20) {
-            // Health score + recommendations
-            HealthScoreView()
-
-            Divider()
-
-            // Memory overview
-            if let memory = manager.systemMonitor.currentMemory {
-                MemoryBreakdownView(memory: memory)
-            }
-
-            Divider()
-
-            // Two-column: CPU + Disk
-            HStack(alignment: .top, spacing: 20) {
-                CPUView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Divider().frame(height: 300)
-
-                DiskView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            Divider()
-
-            // Network
-            NetworkView()
-
-            Divider()
-
-            // Top processes
-            ProcessListView()
-        }
     }
 }
 
@@ -315,24 +277,24 @@ struct MemorySection: View {
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DesignSystem.Spacing.lg) {
+            sectionHeader
+            
             if let memory = systemMonitor.currentMemory {
-                HStack(spacing: 24) {
+                HStack(spacing: DesignSystem.Spacing.lg) {
                     MemoryGaugeView(
                         percentage: memory.usedPercentage,
                         pressureLevel: systemMonitor.pressureLevel,
                         size: 140
                     )
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Memory Usage")
-                            .font(.title2.bold())
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                         QuickStatRow(label: "Used", value: String(format: "%.2f GB", memory.usedGB), color: .blue)
                         QuickStatRow(label: "Free", value: String(format: "%.2f GB", memory.freeGB), color: .green)
                         QuickStatRow(label: "Cached", value: String(format: "%.2f GB", memory.cachedGB), color: .gray)
                         QuickStatRow(label: "Compressed", value: String(format: "%.2f GB", memory.compressedGB), color: .cyan)
                         QuickStatRow(label: "Wired", value: String(format: "%.2f GB", memory.wiredGB), color: .purple)
-                        QuickStatRow(label: "Swap Used", value: String(format: "%.2f GB", memory.swapUsedGB), color: .orange)
+                        QuickStatRow(label: "Swap", value: String(format: "%.2f GB", memory.swapUsedGB), color: .orange)
                     }
                     Spacer()
                 }
@@ -343,6 +305,22 @@ struct MemorySection: View {
             MemoryHistoryView()
         }
     }
+    
+    private var sectionHeader: some View {
+        HStack {
+            Image(systemName: "memorychip")
+                .font(.title2)
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Memory")
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                Text("Detailed memory breakdown and history")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+    }
 }
 
 struct QuickStatRow: View {
@@ -351,18 +329,19 @@ struct QuickStatRow: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignSystem.Spacing.sm) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(label)
-                .font(.caption)
+                .font(DesignSystem.Typography.caption)
                 .foregroundColor(.secondary)
             Spacer()
             Text(value)
-                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .font(DesignSystem.Typography.caption)
+                .fontWeight(.semibold)
         }
-        .frame(width: 200)
+        .frame(minWidth: 180)
     }
 }
 

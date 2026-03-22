@@ -9,8 +9,13 @@ class AlertManager: ObservableObject {
     @Published var lastAlertLevel: MemoryPressureLevel = .normal
     @Published var activeAlerts: [AlertNotification] = []
 
-    private var lastAlertTime: [Double: Date] = [:] // threshold percentage -> last alert time
+    private var lastAlertTime: [Double: Date] = [:]
     private let settings = AppSettings.shared
+
+    // Sound preference — defaults to false (silent), user opts-in
+    @Published var soundsEnabled: Bool {
+        didSet { UserDefaults.standard.set(soundsEnabled, forKey: "alertSoundsEnabled") }
+    }
 
     struct AlertNotification: Identifiable {
         let id = UUID()
@@ -23,7 +28,8 @@ class AlertManager: ObservableObject {
     }
 
     private init() {
-        // Defer notification setup - will be called later
+        self.soundsEnabled = UserDefaults.standard.object(forKey: "alertSoundsEnabled") as? Bool ?? false
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 
     // MARK: - Permission
@@ -63,6 +69,9 @@ class AlertManager: ObservableObject {
             }
         }
 
+        // Swap alerts (separate from memory percentage)
+        checkSwapAlerts()
+
         // Update pressure level
         let newLevel: MemoryPressureLevel
         if memoryPercentage >= 95 {
@@ -75,6 +84,48 @@ class AlertManager: ObservableObject {
 
         if newLevel != lastAlertLevel {
             lastAlertLevel = newLevel
+        }
+    }
+
+    // MARK: - Swap Alerts
+
+    private func checkSwapAlerts() {
+        guard let mem = SystemMemoryMonitor.shared.currentMemory else { return }
+
+        let swapGB = mem.swapUsedGB
+        let swapKey: Double = -1 // sentinel for swap alerts
+
+        if swapGB > 5 {
+            if let lastTime = lastAlertTime[swapKey] {
+                if Date().timeIntervalSince(lastTime) < 300 { return } // 5min cooldown
+            }
+            fireSwapAlert(swapGB: swapGB, level: "Critical")
+            lastAlertTime[swapKey] = Date()
+        } else if swapGB > 2 {
+            if let lastTime = lastAlertTime[swapKey] {
+                if Date().timeIntervalSince(lastTime) < 600 { return } // 10min cooldown
+            }
+            fireSwapAlert(swapGB: swapGB, level: "Warning")
+            lastAlertTime[swapKey] = Date()
+        }
+    }
+
+    private func fireSwapAlert(swapGB: Double, level: String) {
+        // No programmatic sounds — only notification alerts (silent by default)
+        let message = "Swap usage is \(String(format: "%.1f", swapGB)) GB — \(level). Your Mac may be slowing down."
+
+        if Bundle.main.bundleIdentifier != nil {
+            let content = UNMutableNotificationContent()
+            content.title = "⚠️ Swap Alert — \(level)"
+            content.body = message
+            content.sound = nil // Silent — user controls notification sounds in System Settings
+
+            let request = UNNotificationRequest(
+                identifier: "swap-alert-\(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().add(request) { _ in }
         }
     }
 
@@ -94,38 +145,22 @@ class AlertManager: ObservableObject {
             }
         }
 
-        // Play sound
-        if threshold.soundEnabled {
-            NSSound.beep()
-            if threshold.percentage >= 95 {
-                NSSound(named: "Sosumi")?.play()
-            }
-        }
+        // No programmatic sounds — all alerts are silent notifications
+        // System notification sounds are controlled by the user in macOS Notification Center
 
-        // Send notification
         if threshold.notificationEnabled {
-            sendNotification(notification: notification)
+            sendNotification(notification: notification, playSound: false)
         }
     }
 
     // MARK: - macOS Notification
 
-    private func sendNotification(notification: AlertNotification) {
-        // Check if we have a proper bundle (required for UNUserNotificationCenter)
-        guard Bundle.main.bundleIdentifier != nil else {
-            // Fall back to NSUserNotification (deprecated but works without bundle)
-            let userNotification = NSUserNotification()
-            userNotification.title = "⚠️ Memory Alert — \(notification.threshold.label)"
-            userNotification.subtitle = notification.message
-            userNotification.soundName = notification.threshold.soundEnabled ? NSUserNotificationDefaultSoundName : nil
-            NSUserNotificationCenter.default.deliver(userNotification)
-            return
-        }
-
+    private func sendNotification(notification: AlertNotification, playSound: Bool = false) {
+        // Use UNUserNotificationCenter exclusively (NSUserNotification is deprecated)
         let content = UNMutableNotificationContent()
         content.title = "⚠️ Memory Alert — \(notification.threshold.label)"
         content.body = notification.message
-        content.sound = notification.threshold.soundEnabled ? .default : nil
+        content.sound = playSound ? .default : nil
         content.categoryIdentifier = "MEMORY_ALERT"
 
         // Find top process to include in notification
@@ -156,5 +191,31 @@ class AlertManager: ObservableObject {
     func clearOldAlerts(olderThan minutes: Int) {
         let cutoff = Date().addingTimeInterval(-Double(minutes) * 60)
         activeAlerts.removeAll { $0.timestamp < cutoff }
+    }
+
+    // MARK: - Proactive Recommendations
+
+    func maybeRecommendClosing(process: ProcessMemoryInfo) {
+        guard settings.notificationsEnabled else { return }
+        guard process.isSafeToClose, process.memoryGB > 1.5 else { return }
+
+        let key = -100 - Double(process.id)
+        if let last = lastAlertTime[key], Date().timeIntervalSince(last) < 1800 {
+            return
+        }
+        lastAlertTime[key] = Date()
+
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Suggestion: close a non-essential app"
+        content.body = "\(process.name) is using \(String(format: "%.1f", process.memoryGB)) GB and has no visible windows. Closing it may improve responsiveness."
+        content.sound = nil
+
+        let request = UNNotificationRequest(
+            identifier: "suggest-close-\(process.id)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { _ in }
     }
 }

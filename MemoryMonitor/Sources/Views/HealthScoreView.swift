@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Overall health score card with recommendations
+/// Overall health score card with recommendations and breakdown
 struct HealthScoreView: View {
     @ObservedObject var manager = MemoryMonitorManager.shared
 
@@ -10,8 +10,13 @@ struct HealthScoreView: View {
                 Image(systemName: "heart.text.square.fill")
                     .font(.title2)
                     .foregroundStyle(.pink)
-                Text("Mac Health")
-                    .font(.title2.bold())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Brand.name)
+                        .font(.title2.bold())
+                    Text("Live health score with clear next steps")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
             }
 
@@ -80,22 +85,110 @@ struct HealthScoreView: View {
                 }
             }
 
-            // Recommendations
+            // Score Breakdown (why is the score what it is)
+            if !manager.healthBreakdown.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Score Breakdown")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.secondary)
+
+                    ForEach(manager.healthBreakdown, id: \.category) { penalty in
+                        HStack(spacing: 8) {
+                            Text(penalty.category)
+                                .font(.caption.bold())
+                                .frame(width: 60, alignment: .leading)
+                            Text("-\(penalty.pointsLost) pts")
+                                .font(.system(.caption, design: .monospaced, weight: .bold))
+                                .foregroundColor(.red)
+                            Text(penalty.reason)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color.red.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Actionable Recommendations
             VStack(alignment: .leading, spacing: 8) {
                 Text("Recommendations")
                     .font(.headline)
 
-                ForEach(Array(manager.recommendations.enumerated()), id: \.offset) { _, tip in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: tip.contains("well") ? "checkmark.circle.fill" : "lightbulb.fill")
-                            .foregroundColor(tip.contains("well") ? .green : .yellow)
-                            .font(.caption)
-                        Text(tip)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                ForEach(manager.actionableRecommendations) { tip in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: tip.icon)
+                            .foregroundColor(severityColor(tip.severity))
+                            .font(.body)
+                            .frame(width: 20)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tip.title)
+                                .font(.caption.bold())
+                            Text(tip.detail)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Action button
+                        actionButton(for: tip)
                     }
+                    .padding(8)
+                    .background(severityColor(tip.severity).opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
+        }
+    }
+
+    // MARK: - Action Buttons
+
+    @ViewBuilder
+    private func actionButton(for tip: MemoryMonitorManager.Recommendation) -> some View {
+        switch tip.action {
+        case .freeRAM, .cleanCaches, .freeDiskSpace:
+            Button {
+                manager.freeRAM()
+            } label: {
+                if manager.optimizer.isWorking {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Fix", systemImage: "bolt.fill")
+                        .font(.caption.bold())
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.blue)
+            .disabled(manager.optimizer.isWorking)
+
+        case .closeApp(_, let pid, _):
+            Button {
+                manager.processMonitor.killProcess(pid: pid)
+                manager.processMonitor.refresh(topN: manager.settings.topProcessesCount)
+            } label: {
+                Label("Close", systemImage: "xmark.circle")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+
+        case .coolDown, .none:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func severityColor(_ severity: MemoryMonitorManager.Recommendation.Severity) -> Color {
+        switch severity {
+        case .info: return .green
+        case .warning: return .orange
+        case .critical: return .red
         }
     }
 

@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     enum SettingsTab: String, CaseIterable {
         case general = "General"
+        case cleanup = "Cleanup"
+        case stats = "Stats"
         case alerts = "Alerts"
         case display = "Display"
         case guard_ = "Guard"
@@ -55,6 +57,8 @@ struct SettingsView: View {
     private var contentSection: some View {
         switch selectedTab {
         case .general: GeneralSettingsContent()
+        case .cleanup: CleanupSettingsContent()
+        case .stats: StatsSettingsContent()
         case .alerts: AlertSettingsContent()
         case .display: DisplaySettingsContent()
         case .guard_: GuardSettingsContent()
@@ -64,6 +68,8 @@ struct SettingsView: View {
     private func icon(for tab: SettingsTab) -> String {
         switch tab {
         case .general: return "gear"
+        case .cleanup: return "trash.circle"
+        case .stats: return "chart.bar"
         case .alerts: return "bell"
         case .display: return "paintbrush"
         case .guard_: return "shield"
@@ -92,6 +98,9 @@ struct GeneralSettingsContent: View {
                     Slider(value: $settings.refreshInterval, in: 1...10, step: 0.5)
 
                     Toggle("Show in Menu Bar", isOn: $settings.showInMenuBar)
+
+                    Toggle("Lite Mode (minimal menu bar)", isOn: $settings.liteMode)
+                        .help("Reduces menu bar popover to just memory % and top process. Less CPU overhead.")
 
                     HStack {
                         Text("Menu Bar Display")
@@ -125,6 +134,163 @@ struct GeneralSettingsContent: View {
                 .padding(8)
             }
         }
+    }
+}
+
+// MARK: - Cleanup Settings
+
+struct CleanupSettingsContent: View {
+    @ObservedObject var settings = AppSettings.shared
+    @State private var newWhitelistPath: String = ""
+    @State private var showingPathPicker = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Cleanup Settings").font(.title2.bold())
+
+            GroupBox("Xcode Cleanup") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Clean Xcode DerivedData", isOn: $settings.cleanXcodeDerivedData)
+                        .help("Cleans Xcode build intermediates and index data. Safe to delete - Xcode will rebuild automatically.")
+
+                    Toggle("Clean Xcode Device Support", isOn: $settings.cleanXcodeDeviceSupport)
+                        .help("Cleans old iOS device support files. Only removes support for iOS versions you haven't used recently.")
+
+                    Text("Xcode cleanup can reclaim 5-80+ GB of space.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(8)
+            }
+
+            GroupBox("Whitelisted Paths") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("These paths will never be cleaned:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if settings.whitelistedPaths.isEmpty {
+                        Text("No whitelisted paths")
+                            .font(.system(.caption, design: .rounded))
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 4)
+                    } else {
+                        FlowLayout(spacing: 4) {
+                            ForEach(settings.whitelistedPaths, id: \.self) { path in
+                                WhitelistPathChip(path: path) {
+                                    removeWhitelistPath(path)
+                                }
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField("Add path...", text: $newWhitelistPath)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+
+                        Button {
+                            showingPathPicker = true
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        .fileImporter(
+                            isPresented: $showingPathPicker,
+                            allowedContentTypes: [.directory],
+                            allowsMultipleSelection: false
+                        ) { result in
+                            if case .success(let urls) = result, let url = urls.first {
+                                let path = url.path
+                                if !settings.whitelistedPaths.contains(path) {
+                                    settings.whitelistedPaths.append(path)
+                                }
+                            }
+                        }
+
+                        Button {
+                            addWhitelistPath()
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                        .disabled(newWhitelistPath.isEmpty)
+                    }
+                }
+                .padding(8)
+            }
+
+            GroupBox("Safety Info") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundColor(.green)
+                        Text("Dry-run mode: You'll always see what will be cleaned")
+                            .font(.caption)
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundColor(.green)
+                        Text("Running apps: Browser/Xcode caches are skipped if running")
+                            .font(.caption)
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundColor(.green)
+                        Text("Whitelist: Protected paths are never deleted")
+                            .font(.caption)
+                    }
+                }
+                .padding(8)
+            }
+        }
+    }
+
+    private func addWhitelistPath() {
+        let path = newWhitelistPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !path.isEmpty && !settings.whitelistedPaths.contains(path) {
+            settings.whitelistedPaths.append(path)
+            newWhitelistPath = ""
+        }
+    }
+
+    private func removeWhitelistPath(_ path: String) {
+        settings.whitelistedPaths.removeAll { $0 == path }
+    }
+}
+
+struct WhitelistPathChip: View {
+    let path: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "folder.fill")
+                .font(.caption2)
+                .foregroundColor(.blue)
+            Text(shortPath)
+                .font(.system(size: 10, design: .monospaced))
+                .lineLimit(1)
+            Button {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.blue.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var shortPath: String {
+        let components = path.components(separatedBy: "/")
+        if components.count > 3 {
+            return "~/" + components.suffix(2).joined(separator: "/")
+        }
+        return path
     }
 }
 
@@ -232,7 +398,7 @@ struct DisplaySettingsContent: View {
                     HStack {
                         Text("App")
                         Spacer()
-                        Text("MemoryMonitor")
+                        Text(Brand.name)
                             .foregroundColor(.secondary)
                     }
                     HStack {
@@ -304,10 +470,12 @@ struct GuardSettingsContent: View {
                                     .font(.caption2)
                                 Button { autoKill.removeFromWhitelist(name) } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 8))
-                                        .foregroundColor(.secondary)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary.opacity(0.7))
+                                        .frame(width: 16, height: 16)
+                                        .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.plain)
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -330,6 +498,19 @@ struct GuardSettingsContent: View {
         }
         .onChange(of: settings.autoKillWarningFirst) { _, newVal in
             autoKill.warningBeforeKill = newVal
+        }
+    }
+}
+
+// MARK: - Stats Settings
+
+struct StatsSettingsContent: View {
+    @ObservedObject private var settings = AppSettings.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Cleanup Stats
+            CleanupStatsView()
         }
     }
 }

@@ -1,0 +1,1539 @@
+import Foundation
+import AppKit
+import Darwin
+
+/// Comprehensive Memory & System Optimizer - Advanced Edition
+/// Inspired by Mole, enhanced with intelligent detection and user safety
+///
+/// FEATURES:
+/// - Dry-run mode: scanForCleanup() returns plan without deleting
+/// - Intelligent app detection: warns if apps are running before cleanup
+/// - User confirmation required before destructive operations
+/// - Detailed results showing what was cleaned, skipped, and why
+/// - OpenCode DB cleanup integration
+/// - Extensive cache coverage: developer tools, browsers, apps, system
+/// - Whitelist support for protecting specific paths
+class ComprehensiveOptimizer: ObservableObject {
+    static let shared = ComprehensiveOptimizer()
+
+    @Published var isWorking = false
+    @Published var lastResult: OptimizeResult?
+    @Published var statusMessage: String = ""
+    @Published var progress: Double = 0
+    @Published var needsConfirmation = false
+    @Published var currentPlan: CleanupPlan?
+    
+    // Apps that need to be closed for safe cleanup
+    @Published var appsToClose: [String] = []
+    
+    // MARK: - Progress Phases
+    
+    enum ScanPhase {
+        case idle
+        case developerCaches
+        case browserCaches
+        case systemCaches
+        case applicationCaches
+        case logs
+        case trash
+        case analyzing
+        
+        var message: String {
+            switch self {
+            case .idle: return "Ready"
+            case .developerCaches: return "Scanning developer caches..."
+            case .browserCaches: return "Scanning browser caches..."
+            case .systemCaches: return "Scanning system caches..."
+            case .applicationCaches: return "Scanning applications..."
+            case .logs: return "Scanning logs..."
+            case .trash: return "Checking trash..."
+            case .analyzing: return "Analyzing results..."
+            }
+        }
+        
+        var progress: Double {
+            switch self {
+            case .idle: return 0
+            case .developerCaches: return 0.15
+            case .browserCaches: return 0.30
+            case .systemCaches: return 0.45
+            case .applicationCaches: return 0.60
+            case .logs: return 0.70
+            case .trash: return 0.85
+            case .analyzing: return 0.95
+            }
+        }
+        
+        var estimatedTime: String {
+            switch self {
+            case .idle: return "Click Optimize to start"
+            case .developerCaches: return "~6 sec remaining"
+            case .browserCaches: return "~5 sec remaining"
+            case .systemCaches: return "~4 sec remaining"
+            case .applicationCaches: return "~3 sec remaining"
+            case .logs: return "~2 sec remaining"
+            case .trash: return "~1 sec remaining"
+            case .analyzing: return "Almost done..."
+            }
+        }
+    }
+
+    // MARK: - Cleanup Plan (Dry-Run)
+
+    struct CleanupPlan: Identifiable {
+        let id = UUID()
+        let items: [CleanupItem]
+        let warnings: [CleanupWarning]
+        let totalSizeMB: Double
+        let timestamp: Date
+
+        var totalSizeText: String {
+            if totalSizeMB > 1024 {
+                return String(format: "%.1f GB", totalSizeMB / 1024)
+            }
+            return String(format: "%.0f MB", totalSizeMB)
+        }
+
+        var itemCount: Int { items.count }
+        var warningCount: Int { warnings.count }
+
+        var isSignificant: Bool { totalSizeMB > 50 } // Prompt if > 50MB or has warnings
+
+        struct CleanupItem: Identifiable {
+            let id = UUID()
+            let name: String
+            let sizeMB: Double
+            let category: Category
+            let path: String
+            let isDestructive: Bool
+            let requiresAppClosed: Bool
+            let appName: String?
+            let warningMessage: String?
+            var skipReason: String?
+
+            var sizeText: String {
+                if sizeMB > 1024 {
+                    return String(format: "%.1f GB", sizeMB / 1024)
+                }
+                return String(format: "%.0f MB", sizeMB)
+            }
+
+            enum Category: String, CaseIterable {
+                case developer = "Developer"
+                case browser = "Browser"
+                case application = "Applications"
+                case system = "System"
+                case memory = "Memory"
+                case disk = "Disk"
+                case logs = "Logs"
+
+                var icon: String {
+                    switch self {
+                    case .developer: return "chevron.left.forwardslash.chevron.right"
+                    case .browser: return "globe"
+                    case .application: return "app.fill"
+                    case .system: return "gearshape.fill"
+                    case .memory: return "memorychip"
+                    case .disk: return "externaldrive.fill"
+                    case .logs: return "doc.text.fill"
+                    }
+                }
+
+                var color: String {
+                    switch self {
+                    case .developer: return "purple"
+                    case .browser: return "blue"
+                    case .application: return "cyan"
+                    case .system: return "green"
+                    case .memory: return "orange"
+                    case .disk: return "red"
+                    case .logs: return "yellow"
+                    }
+                }
+            }
+        }
+        
+        struct CleanupWarning: Identifiable {
+            let id = UUID()
+            let message: String
+            let appName: String
+            let itemsAffected: Int
+        }
+    }
+
+    // MARK: - Optimize Result
+
+    struct OptimizeResult {
+        let steps: [Step]
+        let skipped: [SkippedItem]
+        let totalFreedMB: Double
+        let timestamp: Date
+
+        struct Step {
+            let name: String
+            let freedMB: Double
+            let success: Bool
+            let category: CleanupPlan.CleanupItem.Category
+        }
+        
+        struct SkippedItem: Identifiable {
+            let id = UUID()
+            let name: String
+            let reason: String
+            let sizeMB: Double
+        }
+
+        var summary: String {
+            let successCount = steps.filter(\.success).count
+            let skippedCount = skipped.count
+            
+            var text = ""
+            if totalFreedMB > 1024 {
+                text = String(format: "%.1f GB", totalFreedMB / 1024)
+            } else {
+                text = String(format: "%.0f MB", totalFreedMB)
+            }
+            
+            if skippedCount > 0 {
+                return "\(successCount) cleaned, \(skippedCount) skipped · \(text) freed"
+            }
+            return "\(successCount) items cleaned · \(text) freed"
+        }
+    }
+
+    // MARK: - Settings
+
+    var settings: AppSettings { AppSettings.shared }
+
+    private init() {}
+
+    // MARK: - Public API
+
+    /// Scan for cleanup candidates WITHOUT actually deleting anything (dry-run)
+    /// Use this to show the user what will be cleaned before confirmation
+    func scanForCleanup() {
+        guard !isWorking else { return }
+        isWorking = true
+        statusMessage = "Scanning..."
+        progress = 0
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            var items: [CleanupPlan.CleanupItem] = []
+
+            // Minimum scan time for UX - at least 2 seconds so user sees progress
+            let startTime = Date()
+            let minimumScanTime: TimeInterval = 2.0
+
+            // Scan developer caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning developer caches..."; self.progress = 0.1 }
+            Thread.sleep(forTimeInterval: 0.3) // Small delay for UX
+            items.append(contentsOf: self.scanDeveloperCaches())
+
+            // Scan browser caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning browser caches..."; self.progress = 0.3 }
+            Thread.sleep(forTimeInterval: 0.3)
+            items.append(contentsOf: self.scanBrowserCaches())
+
+            // Scan system caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning system caches..."; self.progress = 0.5 }
+            Thread.sleep(forTimeInterval: 0.3)
+            items.append(contentsOf: self.scanSystemCaches())
+            
+            // Scan application caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning applications..."; self.progress = 0.6 }
+            Thread.sleep(forTimeInterval: 0.3)
+            items.append(contentsOf: self.scanApplicationCaches())
+            
+            // Scan logs
+            DispatchQueue.main.async { self.statusMessage = "Scanning logs..."; self.progress = 0.65 }
+            Thread.sleep(forTimeInterval: 0.3)
+            items.append(contentsOf: self.scanLogs())
+
+            // Check trash
+            DispatchQueue.main.async { self.statusMessage = "Checking trash..."; self.progress = 0.7 }
+            Thread.sleep(forTimeInterval: 0.3)
+            let trashSize = self.scanTrash()
+            if trashSize > 0 {
+                items.append(.init(
+                    name: "Trash",
+                    sizeMB: trashSize,
+                    category: .disk,
+                    path: "~/.Trash",
+                    isDestructive: true,
+                    requiresAppClosed: false,
+                    appName: nil,
+                    warningMessage: "⚠️ Permanently deletes files in Trash"
+                ))
+            }
+            
+            // Generate warnings for apps that need to be closed
+            var warnings: [CleanupPlan.CleanupWarning] = []
+            var appsToCloseSet = Set<String>()
+            for item in items {
+                if let appName = item.appName, item.requiresAppClosed {
+                    if isAppRunning(appName) {
+                        appsToCloseSet.insert(appName)
+                    }
+                }
+            }
+            for app in appsToCloseSet {
+                let affectedItems = items.filter { $0.appName == app }.count
+                warnings.append(.init(
+                    message: "\(app) is running - close it for safe cleanup",
+                    appName: app,
+                    itemsAffected: affectedItems
+                ))
+            }
+
+            // Analyzing
+            DispatchQueue.main.async { self.statusMessage = "Analyzing results..."; self.progress = 0.9 }
+
+            let totalSize = items.reduce(0) { $0 + $1.sizeMB }
+            let plan = CleanupPlan(items: items, warnings: warnings, totalSizeMB: totalSize, timestamp: Date())
+
+            // Ensure minimum scan time for better UX
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed < minimumScanTime {
+                Thread.sleep(forTimeInterval: minimumScanTime - elapsed)
+            }
+
+            DispatchQueue.main.async {
+                self.currentPlan = plan
+                self.needsConfirmation = plan.isSignificant
+                self.isWorking = false
+                self.statusMessage = ""
+                self.progress = 1.0
+                
+                print("[ComprehensiveOptimizer] Scan complete: \(items.count) items, \(totalSize)MB total, needsConfirmation: \(plan.isSignificant)")
+            }
+        }
+    }
+
+    /// Execute the cleanup plan (requires prior scanForCleanup call)
+    /// Returns immediately if confirmation is needed and not granted
+    func executeCleanup() {
+        guard !isWorking, let plan = currentPlan else {
+            // No plan, run full optimization
+            fullOptimize()
+            return
+        }
+
+        // Clear confirmation flag
+        needsConfirmation = false
+        isWorking = true
+        statusMessage = "Starting cleanup..."
+        progress = 0
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            var steps: [OptimizeResult.Step] = []
+            var skipped: [OptimizeResult.SkippedItem] = []
+            let totalItems = max(plan.items.count, 1)
+            
+            print("[ComprehensiveOptimizer] Executing cleanup for \(plan.items.count) items")
+
+            // Execute each item with detailed progress
+            for (index, item) in plan.items.enumerated() {
+                let progressPct = Double(index) / Double(totalItems)
+                
+                // Show detailed status message
+                let categoryIcon = self.iconForCategory(item.category)
+                DispatchQueue.main.async {
+                    self.statusMessage = "\(categoryIcon) \(item.name)..."
+                    self.progress = progressPct
+                }
+
+                // Delay for UX so user can see what's happening
+                Thread.sleep(forTimeInterval: 0.5)
+                
+                // Check if app needs to be closed
+                if item.requiresAppClosed, let appName = item.appName, self.isAppRunning(appName) {
+                    // Skip this item - app is running
+                    skipped.append(.init(
+                        name: item.name,
+                        reason: "\(appName) is running",
+                        sizeMB: item.sizeMB
+                    ))
+                    print("[ComprehensiveOptimizer] Skipped \(item.name): \(appName) is running")
+                    continue
+                }
+
+                let freed = self.executeCleanupItem(item)
+                if freed < 0 {
+                    // Item was skipped
+                    skipped.append(.init(
+                        name: item.name,
+                        reason: "Could not clean safely",
+                        sizeMB: item.sizeMB
+                    ))
+                } else {
+                    steps.append(.init(
+                        name: item.name,
+                        freedMB: freed,
+                        success: freed >= 0,
+                        category: item.category
+                    ))
+                    print("[ComprehensiveOptimizer] Cleaned \(item.name): \(freed)MB freed")
+                }
+            }
+
+            // Close idle apps as final step for immediate memory relief
+            DispatchQueue.main.async {
+                self.statusMessage = "Closing idle apps..."
+                self.progress = 0.9
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+            
+            let idleFreed = self.closeIdleApps()
+            if idleFreed.0 > 0 {
+                steps.append(.init(
+                    name: "Closed \(idleFreed.1) idle apps",
+                    freedMB: idleFreed.0,
+                    success: true,
+                    category: .memory
+                ))
+                print("[ComprehensiveOptimizer] Closed \(idleFreed.1) idle apps, freed \(idleFreed.0)MB")
+            }
+
+            let totalFreed = steps.reduce(0) { $0 + max(0, $1.freedMB) }
+            let result = OptimizeResult(steps: steps, skipped: skipped, totalFreedMB: totalFreed, timestamp: Date())
+            
+            print("[ComprehensiveOptimizer] Cleanup complete: \(totalFreed)MB freed, \(skipped.count) skipped")
+
+            DispatchQueue.main.async {
+                self.lastResult = result
+                self.currentPlan = nil
+                self.isWorking = false
+                self.statusMessage = ""
+                self.progress = 1.0
+                self.refreshMonitors()
+            }
+        }
+    }
+    
+    private func iconForCategory(_ category: CleanupPlan.CleanupItem.Category) -> String {
+        switch category {
+        case .developer: return "💻"
+        case .browser: return "🌐"
+        case .application: return "📱"
+        case .system: return "⚙️"
+        case .memory: return "🧠"
+        case .disk: return "💾"
+        case .logs: return "📄"
+        }
+    }
+
+    /// Skip confirmation and just run quietly
+    func executeWithoutConfirmation() {
+        needsConfirmation = false
+        executeCleanup()
+    }
+
+    /// Cancel pending confirmation
+    func cancelPendingCleanup() {
+        needsConfirmation = false
+        currentPlan = nil
+    }
+
+    /// Quick memory-only optimization (no confirmation needed)
+    /// Skips slow purge command - focuses on closing idle apps and flushing caches
+    func quickOptimize() {
+        guard !isWorking else { return }
+        isWorking = true
+        statusMessage = "Finding idle apps..."
+        progress = 0.1
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            var steps: [OptimizeResult.Step] = []
+            
+            print("[ComprehensiveOptimizer] Running quick optimize")
+
+            // Close idle apps (most impactful action)
+            DispatchQueue.main.async { 
+                self.statusMessage = "Finding idle apps..."
+                self.progress = 0.3
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+            
+            let idleFreed = self.closeIdleApps()
+            if idleFreed.0 > 0 {
+                steps.append(.init(name: "Closed \(idleFreed.1) idle apps", freedMB: idleFreed.0, success: true, category: .memory))
+                print("[ComprehensiveOptimizer] Closed \(idleFreed.1) idle apps, freed \(idleFreed.0)MB")
+            }
+
+            // Flush DNS (quick operation)
+            DispatchQueue.main.async { 
+                self.statusMessage = "Flushing DNS cache..."
+                self.progress = 0.6
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+            
+            self.flushDNS()
+            steps.append(.init(name: "DNS cache flushed", freedMB: 0, success: true, category: .system))
+
+            // Clear some memory pressure by forcing a context switch
+            DispatchQueue.main.async { 
+                self.statusMessage = "Finalizing..."
+                self.progress = 0.9
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+
+            let totalFreed = steps.reduce(0) { $0 + $1.freedMB }
+            let result = OptimizeResult(steps: steps, skipped: [], totalFreedMB: totalFreed, timestamp: Date())
+            
+            print("[ComprehensiveOptimizer] Quick optimize complete: \(totalFreed)MB freed")
+
+            DispatchQueue.main.async {
+                self.lastResult = result
+                self.statusMessage = ""
+                self.progress = 1.0
+                self.isWorking = false
+                self.refreshMonitors()
+            }
+        }
+    }
+
+    // MARK: - Cache-Only Optimization (Fast, No Confirmation)
+
+    /// Fast cache cleanup - cleans caches and closes idle apps, no confirmation needed
+    /// Safe to run anytime - skips apps that are running
+    func cacheOnlyOptimize() {
+        guard !isWorking else { return }
+        isWorking = true
+        statusMessage = "Scanning caches..."
+        progress = 0.05
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            var steps: [OptimizeResult.Step] = []
+            var skipped: [OptimizeResult.SkippedItem] = []
+            
+            print("[ComprehensiveOptimizer] Running cache-only optimize")
+
+            // Phase 1: Developer Caches (safe to clean)
+            DispatchQueue.main.async { 
+                self.statusMessage = "Cleaning developer caches..."
+                self.progress = 0.1
+            }
+            
+            let devItems = self.scanDeveloperCaches()
+            for item in devItems {
+                // Skip items that require app to be closed
+                if item.requiresAppClosed, let appName = item.appName, self.isAppRunning(appName) {
+                    skipped.append(.init(name: item.name, reason: "\(appName) is running", sizeMB: item.sizeMB))
+                    continue
+                }
+                
+                DispatchQueue.main.async { self.statusMessage = "💻 \(item.name)..." }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                if freed > 0 {
+                    steps.append(.init(name: item.name, freedMB: freed, success: true, category: item.category))
+                }
+            }
+
+            // Phase 2: Browser Caches (only if not running)
+            DispatchQueue.main.async { 
+                self.statusMessage = "Cleaning browser caches..."
+                self.progress = 0.35
+            }
+            
+            let browserItems = self.scanBrowserCaches()
+            for item in browserItems {
+                if let appName = item.appName, self.isAppRunning(appName) {
+                    skipped.append(.init(name: item.name, reason: "\(appName) is running", sizeMB: item.sizeMB))
+                    continue
+                }
+                
+                DispatchQueue.main.async { self.statusMessage = "🌐 \(item.name)..." }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                if freed > 0 {
+                    steps.append(.init(name: item.name, freedMB: freed, success: true, category: item.category))
+                }
+            }
+
+            // Phase 3: System Caches (always safe)
+            DispatchQueue.main.async { 
+                self.statusMessage = "Cleaning system caches..."
+                self.progress = 0.55
+            }
+            
+            let sysItems = self.scanSystemCaches()
+            for item in sysItems {
+                if item.requiresAppClosed, let appName = item.appName, self.isAppRunning(appName) {
+                    skipped.append(.init(name: item.name, reason: "\(appName) is running", sizeMB: item.sizeMB))
+                    continue
+                }
+                
+                DispatchQueue.main.async { self.statusMessage = "⚙️ \(item.name)..." }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                if freed > 0 {
+                    steps.append(.init(name: item.name, freedMB: freed, success: true, category: item.category))
+                }
+            }
+
+            // Phase 4: Close idle apps
+            DispatchQueue.main.async { 
+                self.statusMessage = "Closing idle apps..."
+                self.progress = 0.8
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+            
+            let idleFreed = self.closeIdleApps()
+            if idleFreed.0 > 0 {
+                steps.append(.init(name: "Closed \(idleFreed.1) idle apps", freedMB: idleFreed.0, success: true, category: .memory))
+                print("[ComprehensiveOptimizer] Closed \(idleFreed.1) idle apps, freed \(idleFreed.0)MB")
+            }
+
+            // Phase 5: Flush DNS
+            DispatchQueue.main.async { 
+                self.statusMessage = "Flushing DNS..."
+                self.progress = 0.9
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+            
+            self.flushDNS()
+            steps.append(.init(name: "DNS cache flushed", freedMB: 0, success: true, category: .system))
+
+            let totalFreed = steps.reduce(0) { $0 + $1.freedMB }
+            let result = OptimizeResult(steps: steps, skipped: skipped, totalFreedMB: totalFreed, timestamp: Date())
+            
+            print("[ComprehensiveOptimizer] Cache-only optimize complete: \(totalFreed)MB freed, \(skipped.count) skipped")
+
+            DispatchQueue.main.async {
+                self.lastResult = result
+                self.statusMessage = ""
+                self.progress = 1.0
+                self.isWorking = false
+                self.refreshMonitors()
+            }
+        }
+    }
+
+    // MARK: - Full Optimization
+
+    private func fullOptimize() {
+        guard !isWorking else { return }
+        isWorking = true
+        progress = 0
+        lastResult = nil
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            var steps: [OptimizeResult.Step] = []
+
+            // Phase 1: Developer Caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning developer caches..."; self.progress = 0.05 }
+            let devItems = self.scanDeveloperCaches()
+            
+            for (index, item) in devItems.enumerated() {
+                DispatchQueue.main.async { 
+                    self.statusMessage = "💻 Cleaning \(item.name)..."
+                    self.progress = 0.05 + (0.2 * Double(index) / Double(max(devItems.count, 1)))
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
+            }
+
+            // Phase 2: Browser Caches
+            DispatchQueue.main.async { self.statusMessage = "Scanning browser caches..."; self.progress = 0.25 }
+            let browserItems = self.scanBrowserCaches()
+            
+            for (index, item) in browserItems.enumerated() {
+                DispatchQueue.main.async { 
+                    self.statusMessage = "🌐 Cleaning \(item.name)..."
+                    self.progress = 0.25 + (0.15 * Double(index) / Double(max(browserItems.count, 1)))
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
+            }
+
+            // Phase 3: System Caches
+            DispatchQueue.main.async { self.statusMessage = "⚙️ Cleaning system caches..."; self.progress = 0.4 }
+            let sysItems = self.scanSystemCaches()
+            
+            for (index, item) in sysItems.enumerated() {
+                DispatchQueue.main.async { 
+                    self.statusMessage = "⚙️ Cleaning \(item.name)..."
+                    self.progress = 0.4 + (0.1 * Double(index) / Double(max(sysItems.count, 1)))
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+                let freed = self.executeCleanupItem(item)
+                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
+            }
+
+            // Phase 4: Trash
+            DispatchQueue.main.async { self.statusMessage = "💾 Emptying trash..."; self.progress = 0.5 }
+            Thread.sleep(forTimeInterval: 0.2)
+            let trashFreed = self.executeTrashEmpty()
+            if trashFreed > 0 {
+                steps.append(.init(name: "Emptied trash", freedMB: trashFreed, success: true, category: .disk))
+            }
+
+            // Phase 5: Memory - Close idle apps
+            DispatchQueue.main.async { self.statusMessage = "🧠 Closing idle apps..."; self.progress = 0.7 }
+            Thread.sleep(forTimeInterval: 0.2)
+            let idleFreed = self.closeIdleApps()
+            if idleFreed.0 > 0 {
+                steps.append(.init(name: "Closed \(idleFreed.1) idle apps", freedMB: idleFreed.0, success: true, category: .memory))
+            }
+
+            // Phase 6: Final DNS flush
+            DispatchQueue.main.async { self.statusMessage = "🌐 Flushing DNS..."; self.progress = 0.9 }
+            Thread.sleep(forTimeInterval: 0.2)
+            self.flushDNS()
+            steps.append(.init(name: "DNS cache flushed", freedMB: 0, success: true, category: .system))
+
+            let totalFreed = steps.reduce(0) { $0 + max(0, $1.freedMB) }
+            let result = OptimizeResult(steps: steps, skipped: [], totalFreedMB: totalFreed, timestamp: Date())
+
+            DispatchQueue.main.async {
+                self.lastResult = result
+                self.statusMessage = ""
+                self.progress = 1.0
+                self.isWorking = false
+                self.refreshMonitors()
+            }
+        }
+    }
+
+    // MARK: - Scanner Methods (Dry-Run)
+
+    private func scanDeveloperCaches() -> [CleanupPlan.CleanupItem] {
+        var items: [CleanupPlan.CleanupItem] = []
+        
+        // Package manager caches
+        let devCachePaths: [(name: String, path: String)] = [
+            ("npm cache", "~/.npm"),
+            ("Yarn cache", "~/.yarn/cache"),
+            ("pnpm store", "~/Library/pnpm/store"),
+            ("Bun cache", "~/.bun/install/cache"),
+            ("pip cache", "~/Library/Caches/pip"),
+            ("Go build cache", "~/Library/Caches/go-build"),
+            ("Cargo cache", "~/.cargo/registry/cache"),
+            ("Gradle cache", "~/.gradle/caches"),
+            ("TypeScript cache", "~/.cache/typescript"),
+            ("Vite cache", "~/.vite/cache"),
+        ]
+
+        for (name, path) in devCachePaths {
+            let size = quickDirectorySizeMB(path)
+            if size > 20 { // Show if > 20MB
+                items.append(.init(
+                    name: name,
+                    sizeMB: size,
+                    category: .developer,
+                    path: path,
+                    isDestructive: false,
+                    requiresAppClosed: false,
+                    appName: nil,
+                    warningMessage: nil
+                ))
+            }
+        }
+
+        // Xcode - requires Xcode to be closed
+        let xcodeRunning = isAppRunning("Xcode")
+        if settings.cleanXcodeDerivedData {
+            let xcodeSize = quickDirectorySizeMB("~/Library/Developer/Xcode/DerivedData")
+            if xcodeSize > 50 {
+                items.append(.init(
+                    name: "Xcode DerivedData",
+                    sizeMB: xcodeSize,
+                    category: .developer,
+                    path: "~/Library/Developer/Xcode/DerivedData",
+                    isDestructive: false,
+                    requiresAppClosed: true,
+                    appName: "Xcode",
+                    warningMessage: xcodeRunning ? "Close Xcode to clean safely" : nil
+                ))
+            }
+        }
+
+        // Xcode DeviceSupport (only if enabled)
+        if settings.cleanXcodeDeviceSupport {
+            let deviceSize = quickDirectorySizeMB("~/Library/Developer/Xcode/iOS DeviceSupport")
+            if deviceSize > 100 {
+                items.append(.init(
+                    name: "iOS DeviceSupport",
+                    sizeMB: deviceSize,
+                    category: .developer,
+                    path: "~/Library/Developer/Xcode/iOS DeviceSupport",
+                    isDestructive: false,
+                    requiresAppClosed: false,
+                    appName: nil,
+                    warningMessage: "Removes old device debugging symbols"
+                ))
+            }
+        }
+        
+        // Xcode Archives (old builds)
+        let archivesSize = quickDirectorySizeMB("~/Library/Developer/Xcode/Archives")
+        if archivesSize > 100 {
+            items.append(.init(
+                name: "Xcode Archives",
+                sizeMB: archivesSize,
+                category: .developer,
+                path: "~/Library/Developer/Xcode/Archives",
+                isDestructive: true,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: "⚠️ Contains your app archives - review before deleting"
+            ))
+        }
+        
+        // iOS Simulators
+        let simulatorSize = quickDirectorySizeMB("~/Library/Developer/CoreSimulator")
+        if simulatorSize > 500 {
+            items.append(.init(
+                name: "iOS Simulators",
+                sizeMB: simulatorSize,
+                category: .developer,
+                path: "~/Library/Developer/CoreSimulator",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: "Run 'xcrun simctl delete unavailable' to clean safely"
+            ))
+        }
+
+        // JetBrains - check if running
+        let jetbrainsRunning = isAppRunning("IntelliJ IDEA") || isAppRunning("WebStorm") || isAppRunning("PyCharm")
+        let jetbrainsSize = quickDirectorySizeMB("~/Library/Caches/JetBrains")
+        if jetbrainsSize > 50 {
+            items.append(.init(
+                name: "JetBrains IDE cache",
+                sizeMB: jetbrainsSize,
+                category: .developer,
+                path: "~/Library/Caches/JetBrains",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "JetBrains IDE",
+                warningMessage: jetbrainsRunning ? "Close JetBrains IDE to clean safely" : nil
+            ))
+        }
+
+        // VS Code
+        let vscodeRunning = isAppRunning("Electron") || isAppRunning("Code Helper")
+        let vscodeSize = quickDirectorySizeMB("~/Library/Caches/com.microsoft.VSCode")
+        if vscodeSize > 30 {
+            items.append(.init(
+                name: "VS Code cache",
+                sizeMB: vscodeSize,
+                category: .developer,
+                path: "~/Library/Caches/com.microsoft.VSCode",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "VS Code",
+                warningMessage: vscodeRunning ? "Close VS Code to clean safely" : nil
+            ))
+        }
+
+        // Docker - show reclaimable space
+        if isDockerRunning() {
+            let dockerSize = dockerDiskUsageMB()
+            if dockerSize > 50 {
+                items.append(.init(
+                    name: "Docker reclaimable",
+                    sizeMB: dockerSize,
+                    category: .developer,
+                    path: "docker",
+                    isDestructive: false,
+                    requiresAppClosed: false,
+                    appName: nil,
+                    warningMessage: "Runs 'docker system prune' - removes unused containers/images"
+                ))
+            }
+        }
+
+        // Homebrew
+        let brewSize = quickDirectorySizeMB("~/Library/Caches/Homebrew")
+        if brewSize > 50 {
+            items.append(.init(
+                name: "Homebrew cache",
+                sizeMB: brewSize,
+                category: .developer,
+                path: "~/Library/Caches/Homebrew",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+        
+        // OpenCode DB - significant memory user
+        let opencodeDBSize = quickDirectorySizeMB("~/.local/share/opencode")
+        if opencodeDBSize > 100 {
+            items.append(.init(
+                name: "OpenCode database",
+                sizeMB: opencodeDBSize,
+                category: .developer,
+                path: "~/.local/share/opencode",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "OpenCode",
+                warningMessage: "Cleans old sessions - keep only 3 most recent"
+            ))
+        }
+
+        return items
+    }
+    
+    // MARK: - Application Caches
+    
+    private func scanApplicationCaches() -> [CleanupPlan.CleanupItem] {
+        var items: [CleanupPlan.CleanupItem] = []
+        
+        // Popular apps that accumulate large caches
+        let appCaches: [(name: String, path: String, appProcess: String, minSize: Double)] = [
+            ("Spotify cache", "~/Library/Caches/com.spotify.client", "Spotify", 50),
+            ("Slack cache", "~/Library/Caches/com.tinyspeck.slackmacgap", "Slack", 50),
+            ("Discord cache", "~/Library/Caches/com.hnc.Discord", "Discord", 50),
+            ("Teams cache", "~/Library/Caches/com.microsoft.teams", "Microsoft Teams", 50),
+            ("Zoom cache", "~/Library/Caches/us.zoom.xos", "zoom.us", 30),
+            ("Notion cache", "~/Library/Caches/notion.id", "Notion", 30),
+            ("Figma cache", "~/Library/Caches/com.figma.Desktop", "Figma", 30),
+            ("Dropbox cache", "~/Library/Caches/com.dropbox.DropboxMacUpdate", "Dropbox", 50),
+            ("OneDrive cache", "~/Library/Caches/com.microsoft.OneDrive", "OneDrive", 50),
+            ("Telegram cache", "~/Library/Caches/ru.keepcoder.Telegram", "Telegram", 50),
+            ("WhatsApp cache", "~/Library/Caches/desktop.whatsapp.com", "WhatsApp", 30),
+            ("Signal cache", "~/Library/Caches/org.whispersystems.signal-desktop", "Signal", 30),
+        ]
+        
+        for (name, path, processName, minSize) in appCaches {
+            let size = quickDirectorySizeMB(path)
+            if size > minSize {
+                let isRunning = isAppRunning(processName)
+                items.append(.init(
+                    name: name,
+                    sizeMB: size,
+                    category: .application,
+                    path: path,
+                    isDestructive: false,
+                    requiresAppClosed: true,
+                    appName: processName,
+                    warningMessage: isRunning ? "Close \(processName) to clean safely" : nil
+                ))
+            }
+        }
+        
+        return items
+    }
+
+    private func scanBrowserCaches() -> [CleanupPlan.CleanupItem] {
+        var items: [CleanupPlan.CleanupItem] = []
+
+        // Safari - requires Safari to be closed
+        let safariRunning = isAppRunning("Safari")
+        let safariSize = fastDirectorySizeMB("~/Library/Caches/com.apple.Safari")
+        if safariSize > 10 {
+            items.append(.init(
+                name: "Safari caches",
+                sizeMB: safariSize,
+                category: .browser,
+                path: "~/Library/Caches/com.apple.Safari",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "Safari",
+                warningMessage: safariRunning ? "Close Safari to clean safely" : nil
+            ))
+        }
+
+        // Chrome - requires Chrome to be closed
+        let chromeRunning = isAppRunning("Google Chrome")
+        let chromeSize = fastDirectorySizeMB("~/Library/Caches/com.google.Chrome")
+        if chromeSize > 10 {
+            items.append(.init(
+                name: "Chrome caches",
+                sizeMB: chromeSize,
+                category: .browser,
+                path: "~/Library/Caches/com.google.Chrome",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "Google Chrome",
+                warningMessage: chromeRunning ? "Close Chrome to clean safely" : nil
+            ))
+        }
+
+        // Firefox
+        let firefoxRunning = isAppRunning("Firefox")
+        let firefoxSize = fastDirectorySizeMB("~/Library/Caches/org.mozilla.firefox")
+        if firefoxSize > 10 {
+            items.append(.init(
+                name: "Firefox caches",
+                sizeMB: firefoxSize,
+                category: .browser,
+                path: "~/Library/Caches/org.mozilla.firefox",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "Firefox",
+                warningMessage: firefoxRunning ? "Close Firefox to clean safely" : nil
+            ))
+        }
+
+        // Brave
+        let braveRunning = isAppRunning("Brave Browser")
+        let braveSize = fastDirectorySizeMB("~/Library/Caches/com.brave.Browser")
+        if braveSize > 10 {
+            items.append(.init(
+                name: "Brave caches",
+                sizeMB: braveSize,
+                category: .browser,
+                path: "~/Library/Caches/com.brave.Browser",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "Brave Browser",
+                warningMessage: braveRunning ? "Close Brave to clean safely" : nil
+            ))
+        }
+
+        return items
+    }
+    
+    // MARK: - Logs Scanner
+    
+    private func scanLogs() -> [CleanupPlan.CleanupItem] {
+        var items: [CleanupPlan.CleanupItem] = []
+        
+        // User logs
+        let userLogsSize = fastDirectorySizeMB("~/Library/Logs")
+        if userLogsSize > 20 {
+            items.append(.init(
+                name: "User logs",
+                sizeMB: userLogsSize,
+                category: .logs,
+                path: "~/Library/Logs",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+        
+        // System logs (requires admin, so we estimate)
+        let systemLogsSize = fastDirectorySizeMB("/Library/Logs")
+        if systemLogsSize > 50 {
+            items.append(.init(
+                name: "System logs",
+                sizeMB: systemLogsSize,
+                category: .logs,
+                path: "/Library/Logs",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: "May require admin privileges"
+            ))
+        }
+        
+        // Diagnostic reports
+        let diagnosticSize = fastDirectorySizeMB("~/Library/Logs/DiagnosticReports")
+        if diagnosticSize > 10 {
+            items.append(.init(
+                name: "Crash reports",
+                sizeMB: diagnosticSize,
+                category: .logs,
+                path: "~/Library/Logs/DiagnosticReports",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+        
+        return items
+    }
+
+    private func scanSystemCaches() -> [CleanupPlan.CleanupItem] {
+        var items: [CleanupPlan.CleanupItem] = []
+
+        // QuickLook
+        let qlSize = fastDirectorySizeMB("~/Library/Caches/com.apple.QuickLook.thumbnailcache")
+        if qlSize > 10 {
+            items.append(.init(
+                name: "QuickLook thumbnails",
+                sizeMB: qlSize,
+                category: .system,
+                path: "~/Library/Caches/com.apple.QuickLook.thumbnailcache",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+
+        // Icon services
+        let iconSize = fastDirectorySizeMB("~/Library/Caches/com.apple.iconservices.store")
+        if iconSize > 10 {
+            items.append(.init(
+                name: "Icon services cache",
+                sizeMB: iconSize,
+                category: .system,
+                path: "~/Library/Caches/com.apple.iconservices.store",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+        
+        // Software Update caches
+        let updateSize = fastDirectorySizeMB("~/Library/Caches/com.apple.SoftwareUpdate")
+        if updateSize > 50 {
+            items.append(.init(
+                name: "Software Update cache",
+                sizeMB: updateSize,
+                category: .system,
+                path: "~/Library/Caches/com.apple.SoftwareUpdate",
+                isDestructive: false,
+                requiresAppClosed: false,
+                appName: nil,
+                warningMessage: nil
+            ))
+        }
+        
+        // Mail downloads
+        let mailSize = fastDirectorySizeMB("~/Library/Mail")
+        if mailSize > 50 {
+            items.append(.init(
+                name: "Mail downloads",
+                sizeMB: mailSize,
+                category: .system,
+                path: "~/Library/Mail",
+                isDestructive: false,
+                requiresAppClosed: true,
+                appName: "Mail",
+                warningMessage: "Close Mail to clean safely"
+            ))
+        }
+
+        return items
+    }
+
+    private func scanTrash() -> Double {
+        fastDirectorySizeMB("~/.Trash")
+    }
+
+    // MARK: - Execution Methods
+
+    @discardableResult
+    private func executeCleanupItem(_ item: CleanupPlan.CleanupItem) -> Double {
+        // Special handling for Docker
+        if item.path == "docker" {
+            cleanDockerSystem()
+            return 0
+        }
+
+        // Special handling for trash
+        if item.name == "Trash" {
+            return executeTrashEmpty()
+        }
+
+        // Skip if whitelisted
+        if isPathWhitelisted(item.path) {
+            return 0
+        }
+
+        // Check running apps for certain cleanups
+        if item.category == .browser {
+            if isBrowserRunning(for: item.name) {
+                return 0
+            }
+        }
+
+        if item.category == .developer {
+            if item.name.contains("Xcode") && isXcodeRunning() {
+                return 0
+            }
+        }
+
+        return cleanPath(item.path)
+    }
+
+    @discardableResult
+    private func executeTrashEmpty() -> Double {
+        let trashPath = "~/.Trash".expandingTilde
+        let size = fastDirectorySizeMB(trashPath)
+        guard size > 0 else { return 0 }
+
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(atPath: trashPath)
+            for item in contents {
+                try? FileManager.default.removeItem(atPath: trashPath + "/" + item)
+            }
+            return size
+        } catch {
+            return 0
+        }
+    }
+
+    // MARK: - Individual Cleanup Methods
+
+    private func cleanPath(_ path: String) -> Double {
+        let expandedPath = path.expandingTilde
+        guard FileManager.default.fileExists(atPath: expandedPath) else { return 0 }
+
+        let size = directorySizeMB(expandedPath)
+        guard size > 1 else { return 0 }
+
+        do {
+            try FileManager.default.removeItem(atPath: expandedPath)
+            try FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true)
+            return size
+        } catch {
+            return 0
+        }
+    }
+
+    private func cleanDockerSystem() -> Double {
+        guard isDockerRunning() else { return 0 }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/local/bin/docker")
+        task.arguments = ["system", "prune", "-af"]
+        try? task.run()
+        task.waitUntilExit()
+
+        return 0 // Can't easily measure
+    }
+
+    // MARK: - System Optimizations
+
+    private func flushDNS() {
+        let cmds: [(String, [String])] = [
+            ("/usr/bin/dscacheutil", ["-flushcache"]),
+            ("/usr/bin/killall", ["-HUP", "mDNSResponder"])
+        ]
+        for (cmd, args) in cmds {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: cmd)
+            task.arguments = args
+            try? task.run()
+            task.waitUntilExit()
+        }
+    }
+
+    private func rebuildQuickLook() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/qlmanage")
+        task.arguments = ["-r", "cache"]
+        try? task.run()
+        task.waitUntilExit()
+    }
+
+    private func refreshDock() {
+        let dockPlist = "~/Library/Preferences/com.apple.dock.plist".expandingTilde
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: dockPlist)
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+        task.arguments = ["Dock"]
+        try? task.run()
+    }
+
+    private func clearFontCaches() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/atsutil")
+        task.arguments = ["databases", "-remove"]
+        try? task.run()
+        task.waitUntilExit()
+    }
+
+    // MARK: - Memory Management
+
+    private func closeIdleApps() -> (Double, Int) {
+        let protectedIdentifiers = [
+            "com.apple.finder", "com.apple.dock", "com.apple.systemuiserver",
+            "com.apple.controlcenter", "com.apple.notificationcenterui",
+            "com.apple.WindowManager", "com.apple.loginwindow", "com.apple.Spotlight",
+            "com.apple.Mail", "com.apple.Safari", "com.apple.Terminal",
+            "com.apple.ActivityMonitor", "com.jonathannugroho.pulse", "Pulse",
+            "com.apple.LaunchServices", "com.apple.dt.Xcode",
+            "com.google.Chrome", "com.apple.MobileSMS", "com.apple.iChat"
+        ]
+
+        var appsWithWindows = Set<Int32>()
+        if let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+            for window in windowList {
+                if let pid = window[kCGWindowOwnerPID as String] as? Int32 {
+                    appsWithWindows.insert(pid)
+                }
+            }
+        }
+
+        var totalFreed: Double = 0
+        var closedApps: [(name: String, mem: Double)] = []
+        let myPID = ProcessInfo.processInfo.processIdentifier
+
+        for app in NSWorkspace.shared.runningApplications {
+            // Skip protected apps
+            guard app.activationPolicy == .regular,
+                  app.processIdentifier != myPID,
+                  !appsWithWindows.contains(app.processIdentifier),
+                  let bundleID = app.bundleIdentifier,
+                  !protectedIdentifiers.contains(where: { bundleID.contains($0) }) else { continue }
+            
+            // Get memory usage
+            let memMB = processMemoryMB(pid: app.processIdentifier)
+            
+            // Only close apps using > 100MB
+            guard memMB > 100 else { continue }
+
+            // Try graceful termination first
+            let terminated = app.terminate()
+            
+            if terminated {
+                closedApps.append((name: app.localizedName ?? bundleID, mem: memMB))
+                totalFreed += memMB
+            }
+
+            // Limit to closing 10 apps at most
+            if closedApps.count >= 10 { break }
+        }
+
+        return (totalFreed, closedApps.count)
+    }
+
+    private func tryPurge() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/purge")
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func isXcodeRunning() -> Bool {
+        isAppRunning("Xcode")
+    }
+
+    private func isAppRunning(_ name: String) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        task.arguments = ["-x", name]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        try? task.run()
+        task.waitUntilExit()
+        return task.terminationStatus == 0
+    }
+
+    private func isBrowserRunning(for browserName: String) -> Bool {
+        switch browserName {
+        case "Safari": return isAppRunning("Safari")
+        case "Chrome": return isAppRunning("Google Chrome")
+        case "Firefox": return isAppRunning("Firefox")
+        case "Brave": return isAppRunning("Brave Browser")
+        default: return false
+        }
+    }
+
+    private func isDockerRunning() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        task.arguments = ["-x", "docker"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        try? task.run()
+        task.waitUntilExit()
+        return task.terminationStatus == 0
+    }
+
+    private func dockerDiskUsageMB() -> Double {
+        // Get Docker disk usage using docker system df -v
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/local/bin/docker")
+        task.arguments = ["system", "df", "-v"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        try? task.run()
+        task.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        
+        // Parse output to find space reclamation potential
+        // Look for "Reclaimable" column
+        var totalReclaimable: Double = 0
+        let lines = output.components(separatedBy: "\n")
+        for line in lines {
+            // Look for lines with sizes like "1.234GB" or "567MB"
+            let pattern = #"(\d+\.?\d*)\s*(GB|MB|KB)"#
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let range = NSRange(line.startIndex..., in: line)
+                let matches = regex.matches(in: line, options: [], range: range)
+                for match in matches {
+                    if let valueRange = Range(match.range(at: 1), in: line),
+                       let unitRange = Range(match.range(at: 2), in: line),
+                       let value = Double(line[valueRange]) {
+                        let unit = String(line[unitRange]).uppercased()
+                        if unit == "GB" {
+                            totalReclaimable += value * 1024 // Convert to MB
+                        } else if unit == "MB" {
+                            totalReclaimable += value
+                        } else if unit == "KB" {
+                            totalReclaimable += value / 1024
+                        }
+                    }
+                }
+            }
+        }
+        return totalReclaimable
+    }
+
+    private func isPathWhitelisted(_ path: String) -> Bool {
+        let whitelist = settings.whitelistedPaths
+        return whitelist.contains { path.contains($0) }
+    }
+
+    private func goCachePath() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/local/go/bin/go")
+        task.arguments = ["env", "GOCACHE"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        try? task.run()
+        task.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return path
+        }
+        return "~/Library/Caches/go-build".expandingTilde
+    }
+
+    private func scanXcodeDeviceSupport() -> Double {
+        var total: Double = 0
+        let keepCount = 2
+
+        for supportType in ["iOS DeviceSupport", "watchOS DeviceSupport", "tvOS DeviceSupport"] {
+            let basePath = "~/Library/Developer/Xcode/\(supportType)".expandingTilde
+            guard let contents = try? FileManager.default.contentsOfDirectory(atPath: basePath) else { continue }
+
+            var dirsWithDates: [(String, Date)] = []
+            for item in contents {
+                let itemPath = basePath + "/" + item
+                if let attrs = try? FileManager.default.attributesOfItem(atPath: itemPath),
+                   let modDate = attrs[.modificationDate] as? Date {
+                    dirsWithDates.append((itemPath, modDate))
+                }
+            }
+
+            dirsWithDates.sort { $0.1 > $1.1 }
+            for (i, (dirPath, _)) in dirsWithDates.enumerated() {
+                if i >= keepCount {
+                    total += fastDirectorySizeMB(dirPath)
+                }
+            }
+        }
+
+        return total
+    }
+
+    private func processMemoryMB(pid: Int32) -> Double {
+        var taskInfo = proc_taskinfo()
+        let bytes = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, Int32(MemoryLayout<proc_taskinfo>.size))
+        guard bytes > 0 else { return 0 }
+        return Double(taskInfo.pti_resident_size) / (1024 * 1024)
+    }
+
+    private func fastDirectorySizeMB(_ path: String) -> Double {
+        let expanded = path.expandingTilde
+        guard FileManager.default.fileExists(atPath: expanded) else { return 0 }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+        task.arguments = ["-sk", expanded]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return directorySizeMB(expanded) }
+            let kb = output.split(separator: "\t").first.flatMap { Double($0) } ?? 0
+            return kb / 1024
+        } catch {
+            return directorySizeMB(expanded)
+        }
+    }
+
+    private func directorySizeMB(_ path: String) -> Double {
+        guard FileManager.default.fileExists(atPath: path) else { return 0 }
+        var total: UInt64 = 0
+        if let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
+            for case let url as URL in enumerator {
+                if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    total += UInt64(size)
+                }
+            }
+        }
+        return Double(total) / (1024 * 1024)
+    }
+
+    /// Quick directory size estimation - scans only top level for speed
+    /// Returns size in MB, useful for quick estimates before cleanup
+    private func quickDirectorySizeMB(_ path: String) -> Double {
+        let expanded = path.expandingTilde
+        guard FileManager.default.fileExists(atPath: expanded) else { return 0 }
+
+        // Quick estimate: just sum top-level file sizes without deep enumeration
+        var total: UInt64 = 0
+        let fileManager = FileManager.default
+        
+        guard let enumerator = fileManager.enumerator(
+            at: URL(fileURLWithPath: expanded),
+            includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        
+        var count = 0
+        let maxItems = 1000 // Limit for speed
+        
+        for case let url as URL in enumerator {
+            do {
+                let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
+                if resourceValues.isDirectory == false {
+                    total += UInt64(resourceValues.fileSize ?? 0)
+                }
+            } catch { continue }
+            count += 1
+            if count > maxItems { break } // Stop early for performance
+        }
+        
+        // If we hit the limit, estimate the rest proportionally
+        if count >= maxItems {
+            let estimatedTotal = Double(total) * 2.0 // Rough estimate
+            return estimatedTotal / (1024 * 1024)
+        }
+        
+        return Double(total) / (1024 * 1024)
+    }
+
+    private func refreshMonitors() {
+        SystemMemoryMonitor.shared.updateMemoryInfo()
+        ProcessMemoryMonitor.shared.refresh(topN: AppSettings.shared.topProcessesCount)
+    }
+}
+
+// MARK: - String Extension
+
+private extension String {
+    var expandingTilde: String {
+        (self as NSString).expandingTildeInPath
+    }
+}

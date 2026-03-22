@@ -45,6 +45,7 @@ struct ProcessMemoryInfo: Identifiable, Comparable {
     let memoryPercentage: Double
     let cpuPercentage: Double
     let path: String?
+    var isSafeToClose: Bool = false
 
     var memoryMB: Double { Double(memoryBytes) / (1024 * 1024) }
     var memoryGB: Double { Double(memoryBytes) / (1024 * 1024 * 1024) }

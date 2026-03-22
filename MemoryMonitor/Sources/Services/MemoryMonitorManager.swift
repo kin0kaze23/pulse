@@ -13,22 +13,48 @@ class MemoryMonitorManager: ObservableObject {
     let healthMonitor = SystemHealthMonitor.shared
     let alertManager = AlertManager.shared
     let autoKillManager = AutoKillManager.shared
+    let optimizer = MemoryOptimizer.shared
     let settings = AppSettings.shared
+    let devMonitor = DeveloperMonitor.shared
+    let devProfilesEngine = DeveloperProfilesEngine.shared
 
     private var cancellables = Set<AnyCancellable>()
     private var processRefreshTimer: Timer?
     private var healthTimer: Timer?
     private var cpuTimer: Timer?
+    private var cycleCountTimer: Timer?
 
     @Published var isRunning = false
+    @Published var liteMode = false
 
     private init() {
+        liteMode = settings.liteMode
         setupBindings()
     }
 
     // MARK: - Setup
 
     private func setupBindings() {
+        let childPublishers: [AnyPublisher<Void, Never>] = [
+            systemMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            processMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            cpuMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            diskMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            healthMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            alertManager.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            autoKillManager.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            optimizer.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            settings.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            devMonitor.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            devProfilesEngine.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+        ]
+
+        Publishers.MergeMany(childPublishers)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         settings.$refreshInterval
             .removeDuplicates()
             .sink { [weak self] interval in
@@ -43,6 +69,19 @@ class MemoryMonitorManager: ObservableObject {
                 self?.autoKillManager.isEnabled = enabled
             }
             .store(in: &cancellables)
+
+        settings.$liteMode
+            .sink { [weak self] enabled in
+                self?.liteMode = enabled
+            }
+            .store(in: &cancellables)
+
+        processMonitor.$topProcesses
+            .sink { [weak self] processes in
+                guard let self, let candidate = processes.first(where: { $0.isSafeToClose && $0.memoryGB > 1.5 }) else { return }
+                self.alertManager.maybeRecommendClosing(process: candidate)
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Start / Stop
@@ -51,32 +90,39 @@ class MemoryMonitorManager: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
 
-        // Memory monitoring
-        systemMonitor.startMonitoring(interval: settings.refreshInterval)
+        // Memory monitoring (default 3s, was 2s)
+        let memInterval = max(settings.refreshInterval, 3.0)
+        systemMonitor.startMonitoring(interval: memInterval)
 
-        // Process monitoring (every 5s)
-        processRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        // Process monitoring (every 10s, was 5s)
+        processRefreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.processMonitor.refresh(topN: self.settings.topProcessesCount)
             self.autoKillManager.checkProcesses()
         }
         processMonitor.refresh(topN: settings.topProcessesCount)
 
-        // CPU monitoring (every 2s)
-        cpuTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        // CPU monitoring (every 5s for better performance)
+        cpuTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.cpuMonitor.update()
         }
         cpuMonitor.update()
 
-        // Health monitoring (every 3s)
-        healthTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        // Health monitoring (every 5s, was 3s) — battery now runs on background thread
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.healthMonitor.update()
         }
         healthMonitor.update()
 
-        // Disk monitoring (every 10s, less frequent)
+        // Cycle count (every 30s — expensive ioreg call, not urgent)
+        cycleCountTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.healthMonitor.updateCycleCount()
+        }
+        healthMonitor.updateCycleCount()
+
+        // Disk monitoring (every 30s, was 10s — rarely changes)
         diskMonitor.refresh()
-        Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             self?.diskMonitor.refresh()
         }
 
@@ -103,6 +149,8 @@ class MemoryMonitorManager: ObservableObject {
         healthTimer = nil
         cpuTimer?.invalidate()
         cpuTimer = nil
+        cycleCountTimer?.invalidate()
+        cycleCountTimer = nil
     }
 
     // MARK: - Quick Actions
@@ -113,35 +161,70 @@ class MemoryMonitorManager: ObservableObject {
         processMonitor.refresh(topN: settings.topProcessesCount)
     }
 
-    // MARK: - Overall Health Score
+    func freeRAM() {
+        optimizer.freeRAM()
+    }
 
-    var healthScore: Int {
-        var score = 100
+    // MARK: - Health Score with Breakdown
+
+    struct HealthPenalty {
+        let category: String
+        let pointsLost: Int
+        let reason: String
+    }
+
+    var healthBreakdown: [HealthPenalty] {
+        var penalties: [HealthPenalty] = []
 
         // Memory penalty
         if let mem = systemMonitor.currentMemory {
-            if mem.usedPercentage > 95 { score -= 40 }
-            else if mem.usedPercentage > 85 { score -= 25 }
-            else if mem.usedPercentage > 75 { score -= 10 }
-            if mem.swapUsedGB > 1 { score -= 15 }
+            if mem.usedPercentage > 95 {
+                penalties.append(HealthPenalty(category: "Memory", pointsLost: 40, reason: String(format: "%.0f%% used — critical", mem.usedPercentage)))
+            } else if mem.usedPercentage > 85 {
+                penalties.append(HealthPenalty(category: "Memory", pointsLost: 25, reason: String(format: "%.0f%% used — high", mem.usedPercentage)))
+            } else if mem.usedPercentage > 75 {
+                penalties.append(HealthPenalty(category: "Memory", pointsLost: 10, reason: String(format: "%.0f%% used", mem.usedPercentage)))
+            }
+
+            if mem.swapUsedGB > 5 {
+                penalties.append(HealthPenalty(category: "Swap", pointsLost: 20, reason: String(format: "%.1f GB swap — critical", mem.swapUsedGB)))
+            } else if mem.swapUsedGB > 2 {
+                penalties.append(HealthPenalty(category: "Swap", pointsLost: 15, reason: String(format: "%.1f GB swap — heavy", mem.swapUsedGB)))
+            } else if mem.swapUsedGB > 1 {
+                penalties.append(HealthPenalty(category: "Swap", pointsLost: 8, reason: String(format: "%.1f GB swap used", mem.swapUsedGB)))
+            }
         }
 
         // CPU penalty
         let cpuTotal = cpuMonitor.userCPUPercentage + cpuMonitor.systemCPUPercentage
-        if cpuTotal > 80 { score -= 20 }
-        else if cpuTotal > 50 { score -= 10 }
+        if cpuTotal > 80 {
+            penalties.append(HealthPenalty(category: "CPU", pointsLost: 20, reason: String(format: "%.0f%% — overloaded", cpuTotal)))
+        } else if cpuTotal > 50 {
+            penalties.append(HealthPenalty(category: "CPU", pointsLost: 10, reason: String(format: "%.0f%% — elevated", cpuTotal)))
+        }
 
         // Thermal penalty
-        if healthMonitor.thermalState == "Critical" { score -= 25 }
-        else if healthMonitor.thermalState == "Serious" { score -= 15 }
+        if healthMonitor.thermalState == "Critical" {
+            penalties.append(HealthPenalty(category: "Thermal", pointsLost: 25, reason: "Critical — throttling"))
+        } else if healthMonitor.thermalState == "Serious" {
+            penalties.append(HealthPenalty(category: "Thermal", pointsLost: 15, reason: "Serious — hot"))
+        }
 
         // Disk penalty
         if let disk = diskMonitor.primaryDisk {
-            if disk.usedPercentage > 95 { score -= 15 }
-            else if disk.usedPercentage > 90 { score -= 10 }
+            if disk.usedPercentage > 95 {
+                penalties.append(HealthPenalty(category: "Disk", pointsLost: 15, reason: String(format: "%.0f%% full — critical", disk.usedPercentage)))
+            } else if disk.usedPercentage > 90 {
+                penalties.append(HealthPenalty(category: "Disk", pointsLost: 10, reason: String(format: "%.0f%% full", disk.usedPercentage)))
+            }
         }
 
-        return max(0, min(100, score))
+        return penalties
+    }
+
+    var healthScore: Int {
+        let totalPenalty = healthBreakdown.reduce(0) { $0 + $1.pointsLost }
+        return max(0, 100 - totalPenalty)
     }
 
     var healthGrade: String {
@@ -179,42 +262,126 @@ class MemoryMonitorManager: ObservableObject {
         return "cpu.fill"
     }
 
-    // MARK: - Recommendations
+    // MARK: - Actionable Recommendations
 
-    var recommendations: [String] {
-        var tips: [String] = []
+    struct Recommendation: Identifiable {
+        let id = UUID()
+        let icon: String
+        let title: String
+        let detail: String
+        let action: RecommendationAction
+        let severity: Severity
+
+        enum RecommendationAction {
+            case freeRAM
+            case cleanCaches(cacheMB: Double)
+            case closeApp(name: String, pid: Int32, memoryGB: Double)
+            case freeDiskSpace
+            case coolDown
+            case none
+        }
+
+        enum Severity {
+            case info, warning, critical
+
+            var color: String {
+                switch self {
+                case .info: return "green"
+                case .warning: return "orange"
+                case .critical: return "red"
+                }
+            }
+        }
+    }
+
+    var actionableRecommendations: [Recommendation] {
+        var tips: [Recommendation] = []
 
         if let mem = systemMonitor.currentMemory {
+            // High memory → suggest free RAM
             if mem.usedPercentage > 85 {
-                tips.append("Memory is high. Close unused applications or browser tabs.")
+                tips.append(Recommendation(
+                    icon: "memorychip.fill",
+                    title: "Memory is high (\(String(format: "%.0f", mem.usedPercentage))%)",
+                    detail: "Free cached memory to improve performance",
+                    action: .freeRAM,
+                    severity: mem.usedPercentage > 95 ? .critical : .warning
+                ))
             }
+
+            // Heavy swap → suggest free RAM + close apps
             if mem.swapUsedGB > 2 {
-                tips.append("Heavy swap usage detected (\(String(format: "%.1f", mem.swapUsedGB))GB). This slows your Mac.")
+                tips.append(Recommendation(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "Heavy swap (\(String(format: "%.1f", mem.swapUsedGB)) GB)",
+                    detail: "Swap slows your Mac. Free RAM or close apps.",
+                    action: .freeRAM,
+                    severity: mem.swapUsedGB > 5 ? .critical : .warning
+                ))
             }
         }
 
-        if cpuMonitor.systemCPUPercentage > 50 {
-            tips.append("System CPU is elevated. Check for background processes.")
+        // Cache cleanup suggestion
+        let cacheMB = optimizer.scanCacheSize()
+        if cacheMB > 500 {
+            tips.append(Recommendation(
+                icon: "trash.fill",
+                title: "\(String(format: "%.0f", cacheMB)) MB of caches",
+                detail: "Safe to clean — macOS rebuilds automatically",
+                action: .cleanCaches(cacheMB: cacheMB),
+                severity: cacheMB > 2000 ? .warning : .info
+            ))
         }
 
+        // Top memory hog suggestion
+        if let topProcess = processMonitor.topProcesses.first, topProcess.memoryGB > 2 {
+            tips.append(Recommendation(
+                icon: "app.fill",
+                title: "\"\(topProcess.name)\" using \(String(format: "%.1f", topProcess.memoryGB)) GB",
+                detail: "Consider restarting if not actively using",
+                action: .closeApp(name: topProcess.name, pid: topProcess.id, memoryGB: topProcess.memoryGB),
+                severity: topProcess.memoryGB > 5 ? .warning : .info
+            ))
+        }
+
+        // Disk full
         if let disk = diskMonitor.primaryDisk, disk.usedPercentage > 90 {
-            tips.append("Disk is almost full (\(String(format: "%.0f", disk.usedPercentage))%). Free up space for better performance.")
+            tips.append(Recommendation(
+                icon: "internaldrive.fill",
+                title: "Disk \(String(format: "%.0f", disk.usedPercentage))% full",
+                detail: "Low disk space forces more swap usage",
+                action: .freeDiskSpace,
+                severity: disk.usedPercentage > 95 ? .critical : .warning
+            ))
         }
 
+        // Thermal
         if healthMonitor.thermalState == "Serious" || healthMonitor.thermalState == "Critical" {
-            tips.append("Mac is overheating. Close demanding apps and check ventilation.")
+            tips.append(Recommendation(
+                icon: "thermometer.high",
+                title: "Mac is overheating (\(healthMonitor.thermalState))",
+                detail: "Close demanding apps, check ventilation",
+                action: .coolDown,
+                severity: .critical
+            ))
         }
 
-        if let topProcess = processMonitor.topProcesses.first, topProcess.memoryGB > 3 {
-            tips.append("\"\(topProcess.name)\" is using \(String(format: "%.1f", topProcess.memoryGB))GB. Consider restarting it.")
-        }
-
+        // All good
         if tips.isEmpty {
-            tips.append("Your Mac is running well. Keep it up!")
+            tips.append(Recommendation(
+                icon: "checkmark.circle.fill",
+                title: "Your Mac is running well!",
+                detail: "All systems nominal",
+                action: .none,
+                severity: .info
+            ))
         }
 
         return tips
     }
+
+    /// Legacy text-only recommendations (for menu bar popover compatibility)
+    var recommendations: [String] {
+        actionableRecommendations.map { $0.title + ". " + $0.detail }
+    }
 }
-
-

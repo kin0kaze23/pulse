@@ -1,17 +1,53 @@
 import SwiftUI
+import UserNotifications
+
+// MARK: - Adaptive Menu Bar Content (switches between lite and full)
+
+struct MenuBarAdaptiveContent: View {
+    @ObservedObject var manager: MemoryMonitorManager
+    @ObservedObject var settings = AppSettings.shared
+
+    var body: some View {
+        if settings.liteMode {
+            MenuBarLiteView(manager: manager)
+        } else {
+            MenuBarPopoverContent(manager: manager)
+                .frame(width: 320)
+        }
+    }
+}
 
 @main
-struct MemoryMonitorApp: App {
+struct PulseApp: App {
     @StateObject private var manager = MemoryMonitorManager.shared
+    @StateObject private var settings = AppSettings.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         // Dashboard window — primary window, opens on launch
-        WindowGroup("Memory Monitor") {
-            DashboardView()
-                .environmentObject(manager)
-                .onAppear { manager.start() }
-                .frame(minWidth: 850, minHeight: 620)
+        WindowGroup("Pulse", id: "main") {
+            ZStack {
+                DashboardView()
+                    .environmentObject(manager)
+                    .onAppear { manager.start() }
+                    .frame(minWidth: 850, minHeight: 620)
+                
+                // Cleanup Confirmation Overlay
+                if manager.optimizer.showCleanupConfirmation {
+                    CleanupConfirmationView()
+                        .environmentObject(manager)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+                
+                // Action Toast (shows during/after optimization)
+                VStack {
+                    Spacer()
+                    ActionToastView()
+                        .padding(.bottom, 20)
+                        .padding(.horizontal, 20)
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: manager.optimizer.showCleanupConfirmation)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 900, height: 650)
@@ -24,10 +60,9 @@ struct MemoryMonitorApp: App {
         .windowResizability(.contentSize)
         .defaultSize(width: 500, height: 440)
 
-        // Menu bar extra — always visible
+        // Menu bar extra — always visible, content adapts to lite mode
         MenuBarExtra {
-            MenuBarPopoverContent(manager: manager)
-                .frame(width: 320)
+            MenuBarAdaptiveContent(manager: manager)
         } label: {
             MenuBarLabel(manager: manager)
         }
@@ -39,12 +74,16 @@ struct MemoryMonitorApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Start monitoring immediately
-        MemoryMonitorManager.shared.start()
-
-        // Activate the app properly
-        NSApp.setActivationPolicy(.regular)
+        // Menu bar app — use accessory policy (no Dock icon, stays running)
+        NSApp.setActivationPolicy(.accessory)
         NSApp.activate()
+
+        // Request notification authorization
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Notification authorization error: \(error)")
+            }
+        }
 
         // Open window on main screen after brief delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -57,12 +96,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        showMainWindow()
+        // Don't call showMainWindow here — causes double-show on every focus
+        // Window is already shown in applicationDidFinishLaunching
     }
 
     private func showMainWindow() {
         for window in NSApp.windows {
-            if window.title.contains("Memory") {
+            if window.title.contains("Pulse") {
                 // Force to main screen
                 if let mainScreen = NSScreen.main {
                     let screenFrame = mainScreen.visibleFrame
@@ -83,19 +123,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct MenuBarLabel: View {
     @ObservedObject var manager: MemoryMonitorManager
+    @ObservedObject var settings = AppSettings.shared
 
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: manager.menuBarIcon)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(pressureColor)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .semibold))
 
-            Text(manager.menuBarText)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .monospacedDigit()
+            if settings.menuBarDisplayMode == .compact {
+                // Compact mode: show both Memory % and CPU %
+                HStack(spacing: 3) {
+                    Text(memText)
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                    Text(cpuText)
+                }
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(pressureColor)
+            } else {
+                Text(manager.menuBarText)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(pressureColor)
+            }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+    }
+    
+    private var memText: String {
+        guard let memory = manager.systemMonitor.currentMemory else { return "--%" }
+        return String(format: "%.0f%%", memory.usedPercentage)
+    }
+    
+    private var cpuText: String {
+        let cpu = manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage
+        return String(format: "%.0f%%", cpu)
     }
 
     private var pressureColor: Color {
@@ -111,6 +176,7 @@ struct MenuBarLabel: View {
 
 struct MenuBarPopoverContent: View {
     @ObservedObject var manager: MemoryMonitorManager
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -310,8 +376,42 @@ struct MenuBarPopoverContent: View {
     private var actionsSection: some View {
         VStack(spacing: 2) {
             Button {
+                manager.freeRAM()
+            } label: {
+                if manager.optimizer.isWorking {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Optimizing...")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    Label("Optimize Now", systemImage: "bolt.fill")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .disabled(manager.optimizer.isWorking)
+
+            // Show last result
+            if let result = manager.optimizer.lastResult,
+               Date().timeIntervalSince(result.timestamp) < 8 {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                    Text(result.summary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            Button {
                 NSApp.activate()
-                openWindow("dashboard")
+                openWindow(id: "main")
             } label: {
                 Label("Open Dashboard", systemImage: "square.grid.2x2")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -319,7 +419,7 @@ struct MenuBarPopoverContent: View {
             .keyboardShortcut("d")
 
             Button {
-                openWindow("settings")
+                openWindow(id: "settings")
             } label: {
                 Label("Settings...", systemImage: "gear")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -342,29 +442,13 @@ struct MenuBarPopoverContent: View {
 
     // MARK: - Helpers
 
-    private func openWindow(_ identifier: String) {
-        for window in NSApp.windows {
-            if window.title.lowercased().contains(identifier.lowercased()) ||
-               window.identifier?.rawValue == identifier {
-                window.makeKeyAndOrderFront(nil)
-                return
-            }
-        }
-        NSApp.activate()
-    }
-
     private var scoreColor: Color {
-        switch manager.healthScore {
-        case 90...100: return .green
-        case 80..<90: return .blue
-        case 70..<80: return .yellow
-        case 50..<70: return .orange
-        default: return .red
-        }
+        DesignSystem.Colors.score(manager.healthScore)
     }
 
     private var batteryIcon: String {
         let pct = manager.healthMonitor.batteryPercentage
+        if manager.healthMonitor.isCharging { return "battery.100.bolt" }
         if pct > 75 { return "battery.100" }
         if pct > 50 { return "battery.75" }
         if pct > 25 { return "battery.50" }
@@ -372,8 +456,7 @@ struct MenuBarPopoverContent: View {
     }
 
     private var batteryColor: Color {
-        if manager.healthMonitor.isCharging { return .green }
-        return manager.healthMonitor.batteryPercentage > 20 ? .green : .red
+        DesignSystem.Colors.battery(manager.healthMonitor.batteryPercentage, isCharging: manager.healthMonitor.isCharging)
     }
 }
 
@@ -395,6 +478,7 @@ struct MiniStatCard: View {
             Text(value)
                 .font(.system(.body, design: .rounded, weight: .bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
 
             Text(label)
                 .font(.caption2)
@@ -403,6 +487,7 @@ struct MiniStatCard: View {
             Text(detail)
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundColor(.secondary)
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)

@@ -6,6 +6,24 @@ struct ProcessListView: View {
     @ObservedObject var manager = MemoryMonitorManager.shared
     @State private var selectedProcess: ProcessMemoryInfo?
     @State private var showKillConfirmation = false
+    
+    // Sort persistence
+    @AppStorage("processSortField") private var sortField: String = "memory"
+    @AppStorage("processSortAscending") private var sortAscending: Bool = false
+    
+    private var sortedProcesses: [ProcessMemoryInfo] {
+        let processes = processMonitor.topProcesses
+        switch sortField {
+        case "memory":
+            return sortAscending ? processes.sorted { $0.memoryMB < $1.memoryMB } : processes
+        case "cpu":
+            return sortAscending ? processes.sorted { $0.cpuPercentage < $1.cpuPercentage } : processes.sorted { $0.cpuPercentage > $1.cpuPercentage }
+        case "name":
+            return sortAscending ? processes.sorted { $0.name < $1.name } : processes.sorted { $0.name > $1.name }
+        default:
+            return processes
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,7 +43,7 @@ struct ProcessListView: View {
                 ContentUnavailableView("No data", systemImage: "cpu")
                     .frame(height: 200)
             } else {
-                Table(processMonitor.topProcesses) {
+                Table(sortedProcesses) {
                     TableColumn("") { process in
                         ProcessIconView(pid: process.id, name: process.name)
                     }
@@ -33,9 +51,20 @@ struct ProcessListView: View {
 
                     TableColumn("Process") { process in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(process.name)
-                                .font(.system(.body, design: .rounded))
-                                .fontWeight(.medium)
+                            HStack(spacing: 6) {
+                                Text(process.name)
+                                    .font(.system(.body, design: .rounded))
+                                    .fontWeight(.medium)
+                                if process.isSafeToClose {
+                                    Text("SAFE")
+                                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                                        .foregroundColor(.green)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                            }
                             if let path = process.path {
                                 Text(URL(fileURLWithPath: path).lastPathComponent)
                                     .font(.caption2)
@@ -46,9 +75,12 @@ struct ProcessListView: View {
                     }
 
                     TableColumn("Memory") { process in
-                        Text(String(format: "%.1f MB", process.memoryMB))
-                            .font(.system(.body, design: .monospaced))
-                            .fontWeight(.semibold)
+                        HStack(spacing: 4) {
+                            Text(String(format: "%.1f MB", process.memoryMB))
+                                .font(.system(.body, design: .monospaced))
+                                .fontWeight(.semibold)
+                                .contentTransition(.numericText())
+                        }
                     }
                     .width(100)
 
@@ -59,6 +91,7 @@ struct ProcessListView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .frame(width: 50, alignment: .trailing)
+                                .contentTransition(.numericText())
                         }
                     }
                     .width(150)
@@ -70,11 +103,13 @@ struct ProcessListView: View {
                         } label: {
                             Image(systemName: "xmark.circle")
                                 .foregroundColor(.red.opacity(0.7))
+                                .frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.plain)
                         .help("Terminate \(process.name)")
                     }
-                    .width(32)
+                    .width(40)
                 }
                 .frame(minHeight: 200, maxHeight: 400)
             }

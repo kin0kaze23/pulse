@@ -9,17 +9,54 @@ class ProcessMemoryMonitor: ObservableObject {
     @Published var topProcesses: [ProcessMemoryInfo] = []
     @Published var allProcesses: [ProcessMemoryInfo] = []
 
+    // Icon cache — avoids repeated NSWorkspace scans
+    private var iconCache: [Int32: NSImage] = [:]
+    private var iconCacheTimestamp: Date = .distantPast
+    private let iconCacheLifetime: TimeInterval = 30 // refresh cache every 30s
+
+    // Safe-to-close cache — apps with visible windows
+    private var appsWithWindows: Set<Int32> = []
+
     private init() {}
 
     // MARK: - Refresh Process List
 
     func refresh(topN: Int = 20) {
-        let processes = getAllProcesses()
-        let sorted = processes.sorted()
-        DispatchQueue.main.async {
-            self.allProcesses = sorted
-            self.topProcesses = Array(sorted.prefix(topN))
+        // Run heavy work on background queue to avoid blocking main thread
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Update apps-with-windows cache
+            self.refreshAppsWithWindows()
+
+            let processes = self.getAllProcesses()
+            let sorted = processes.sorted()
+            let activePIDs = Set(sorted.map(\.id))
+            self.pruneIconCache(activePIDs: activePIDs)
+            
+            DispatchQueue.main.async {
+                self.allProcesses = sorted
+                self.topProcesses = Array(sorted.prefix(topN))
+            }
         }
+    }
+
+    /// Find which app PIDs have visible windows using CGWindowList
+    private func refreshAppsWithWindows() {
+        var pids = Set<Int32>()
+
+        guard let windowList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else { return }
+
+        for window in windowList {
+            if let ownerPID = window[kCGWindowOwnerPID as String] as? Int32 {
+                pids.insert(ownerPID)
+            }
+        }
+
+        appsWithWindows = pids
     }
 
     // MARK: - Get All Process Memory Info
@@ -54,6 +91,9 @@ class ProcessMemoryMonitor: ObservableObject {
     // MARK: - Single Process Info
 
     private func getProcessInfo(pid: Int32, totalMemory: UInt64) -> ProcessMemoryInfo? {
+        // Skip our own process
+        guard pid != ProcessInfo.processInfo.processIdentifier else { return nil }
+
         // Get process name
         var nameBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         proc_name(pid, &nameBuffer, UInt32(MAXPATHLEN))
@@ -66,44 +106,30 @@ class ProcessMemoryMonitor: ObservableObject {
         proc_pidpath(pid, &pathBuffer, UInt32(MAXPATHLEN))
         let path = String(cString: pathBuffer)
 
-        // Get task info for memory
-        var taskInfo = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info>.size / MemoryLayout<natural_t>.size)
+        // Use proc_pidinfo with PROC_PIDTASKINFO to get memory for THIS specific process
+        // (task_info with mach_task_self_ was wrong — it returned the app's own memory for every process)
+        var taskInfo = proc_taskinfo()
+        let procSize = MemoryLayout<proc_taskinfo>.size
+        let bytesRead = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, Int32(procSize))
 
-        let kernReturn = withUnsafeMutablePointer(to: &taskInfo) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
-            }
-        }
+        guard bytesRead > 0 else { return nil }
 
-        guard kernReturn == KERN_SUCCESS else { return nil }
-
-        let residentBytes = UInt64(taskInfo.phys_footprint)
+        let residentBytes = UInt64(taskInfo.pti_resident_size)
         let percentage = totalMemory > 0 ? Double(residentBytes) / Double(totalMemory) * 100.0 : 0
-
-        // Get CPU usage
-        var cpuInfo = task_basic_info()
-        var cpuCount = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size / MemoryLayout<natural_t>.size)
-
-        let _ = withUnsafeMutablePointer(to: &cpuInfo) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(cpuCount)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &cpuCount)
-            }
-        }
 
         // Skip very small processes (kernel threads, etc.)
         guard residentBytes > 1024 * 1024 else { return nil } // > 1MB
 
-        // Skip our own process
-        guard pid != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let safeToClose = !appsWithWindows.contains(pid)
 
         return ProcessMemoryInfo(
             id: pid,
             name: name,
             memoryBytes: residentBytes,
             memoryPercentage: percentage,
-            cpuPercentage: 0, // CPU requires sampling over time
-            path: path.isEmpty ? nil : path
+            cpuPercentage: 0, // CPU is tracked separately in CPUMonitor
+            path: path.isEmpty ? nil : path,
+            isSafeToClose: safeToClose
         )
     }
 
@@ -126,12 +152,37 @@ class ProcessMemoryMonitor: ObservableObject {
         allProcesses.first { $0.name.localizedCaseInsensitiveContains(name) }
     }
 
-    // MARK: - App Icon
+    // MARK: - App Icon (cached)
 
     func iconForProcess(pid: Int32) -> NSImage? {
-        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }) else {
-            return nil
+        // Return cached if still valid
+        if let cached = iconCache[pid],
+           Date().timeIntervalSince(iconCacheTimestamp) < iconCacheLifetime {
+            return cached
         }
-        return app.icon
+
+        // Rebuild cache if expired
+        if Date().timeIntervalSince(iconCacheTimestamp) >= iconCacheLifetime {
+            rebuildIconCache()
+        }
+
+        return iconCache[pid]
+    }
+
+    private func rebuildIconCache() {
+        iconCache.removeAll()
+        for app in NSWorkspace.shared.runningApplications {
+            if let icon = app.icon {
+                iconCache[app.processIdentifier] = icon
+            }
+        }
+        iconCacheTimestamp = Date()
+    }
+
+    /// Remove stale entries from icon cache (call after refresh)
+    private func pruneIconCache(activePIDs: Set<Int32>) {
+        for pid in iconCache.keys where !activePIDs.contains(pid) {
+            iconCache.removeValue(forKey: pid)
+        }
     }
 }

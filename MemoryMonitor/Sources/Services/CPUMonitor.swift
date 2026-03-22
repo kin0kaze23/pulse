@@ -46,11 +46,12 @@ class CPUMonitor: ObservableObject {
         cpuName = String(cString: nameBuf)
     }
 
-    // MARK: - Update CPU Stats
+// MARK: - Update CPU Stats
 
     func update() {
         updateSystemCPU()
-        updateProcessCPU()
+        // Don't update process CPU on every tick - it's expensive
+        // Process CPU is updated separately via updateProcessCPU()
     }
 
     private func updateSystemCPU() {
@@ -101,8 +102,8 @@ class CPUMonitor: ObservableObject {
                         idlePercent: idlePct
                     )
                     self.cpuHistory.append(entry)
-                    if self.cpuHistory.count > 900 {
-                        self.cpuHistory.removeFirst(self.cpuHistory.count - 900)
+                    if self.cpuHistory.count > 300 {
+                        self.cpuHistory.removeFirst(self.cpuHistory.count - 300)
                     }
                 }
             }
@@ -111,7 +112,7 @@ class CPUMonitor: ObservableObject {
         previousCPUTicks = (totalUser, totalSystem, totalIdle, totalNice)
     }
 
-    private func updateProcessCPU() {
+    func updateProcessCPU() {
         var count = proc_listallpids(nil, 0)
         guard count > 0 else { return }
 
@@ -120,33 +121,11 @@ class CPUMonitor: ObservableObject {
 
         var processes: [CPUPerProcess] = []
         var currentTicks: [Int32: UInt64] = [:]
+        let myPID = ProcessInfo.processInfo.processIdentifier
 
         for i in 0..<Int(count) {
             let pid = pids[i]
-            guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier else { continue }
-
-            var taskInfo = task_basic_info()
-            var tCount = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size / MemoryLayout<natural_t>.size)
-
-            let kr = withUnsafeMutablePointer(to: &taskInfo) {
-                $0.withMemoryRebound(to: integer_t.self, capacity: Int(tCount)) {
-                    task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &tCount)
-                }
-            }
-            guard kr == KERN_SUCCESS else { continue }
-
-            // Get thread info for CPU
-            var threadList: thread_act_array_t?
-            var threadCount: mach_msg_type_number_t = 0
-            let threadKr = task_threads(mach_task_self_, &threadList, &threadCount)
-
-            if threadKr == KERN_SUCCESS, let threads = threadList {
-                for j in 0..<Int(threadCount) {
-                    mach_port_deallocate(mach_task_self_, threads[j])
-                }
-                let threadSize = MemoryLayout<thread_t>.size * Int(threadCount)
-                vm_deallocate(mach_task_self_, vm_address_t(bitPattern: threads), vm_size_t(threadSize))
-            }
+            guard pid > 0, pid != myPID else { continue }
 
             // Get name
             var nameBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
@@ -158,7 +137,7 @@ class CPUMonitor: ObservableObject {
             proc_pidpath(pid, &pathBuffer, UInt32(MAXPATHLEN))
             let path = String(cString: pathBuffer)
 
-            // Use proc_pidinfo for CPU time
+            // Use proc_pidinfo for CPU time (correct — reads target process, not self)
             var threadInfo = proc_taskinfo()
             let procSize = MemoryLayout<proc_taskinfo>.size
             let bytesRead = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &threadInfo, Int32(procSize))

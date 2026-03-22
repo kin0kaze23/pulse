@@ -33,6 +33,10 @@ class SystemHealthMonitor: ObservableObject {
     private var previousBytesOut: UInt64 = 0
     private var previousTimestamp: Date = Date()
 
+    // Battery runs on background queue — subprocess calls block
+    private let batteryQueue = DispatchQueue(label: "com.memorymonitor.battery", qos: .utility)
+    private var cycleCountTimer: Timer?
+
     private init() {}
 
     // MARK: - Update All
@@ -57,18 +61,21 @@ class SystemHealthMonitor: ObservableObject {
         while ptr != nil {
             defer { ptr = ptr?.pointee.ifa_next }
 
-            let addr = ptr!.pointee.ifa_addr.pointee
+            // Safe unwrapping - check ifa_addr exists
+            guard let ifaAddr = ptr?.pointee.ifa_addr else { continue }
+            let addr = ifaAddr.pointee
             guard addr.sa_family == UInt8(AF_LINK) else { continue }
 
-            let name = String(cString: ptr!.pointee.ifa_name)
+            // Safe name extraction
+            guard let ifaName = ptr?.pointee.ifa_name else { continue }
+            let name = String(cString: ifaName)
             // Skip loopback
             guard name.hasPrefix("en") || name.hasPrefix("utun") else { continue }
 
-            let data = ptr!.pointee.ifa_data
-            let networkData = data?.assumingMemoryBound(to: if_data.self)
-            if let data = networkData {
-                bytesIn += UInt64(data.pointee.ifi_ibytes)
-                bytesOut += UInt64(data.pointee.ifi_obytes)
+            if let data = ptr?.pointee.ifa_data {
+                let networkData = data.assumingMemoryBound(to: if_data.self)
+                bytesIn += UInt64(networkData.pointee.ifi_ibytes)
+                bytesOut += UInt64(networkData.pointee.ifi_obytes)
             }
         }
 
@@ -98,9 +105,22 @@ class SystemHealthMonitor: ObservableObject {
         previousTimestamp = now
     }
 
-    // MARK: - Battery (via pmset)
+    // MARK: - Battery (via pmset — runs on background queue)
 
     private func updateBattery() {
+        batteryQueue.async { [weak self] in
+            self?.readBatteryState()
+        }
+    }
+
+    /// Called on a separate timer (every 30s) to avoid expensive ioreg on every cycle
+    func updateCycleCount() {
+        batteryQueue.async { [weak self] in
+            self?.readCycleCount()
+        }
+    }
+
+    private func readBatteryState() {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
         task.arguments = ["-g", "batt"]
@@ -116,77 +136,34 @@ class SystemHealthMonitor: ObservableObject {
             guard let output = String(data: data, encoding: .utf8) else { return }
 
             // Parse battery percentage: "75%;"
+            var pct: Double?
             if let pctMatch = output.range(of: #"(\d+)%;?"#, options: .regularExpression) {
                 let pctStr = output[pctMatch].filter { $0.isNumber }
-                if let pct = Double(pctStr) {
-                    DispatchQueue.main.async {
-                        self.batteryPercentage = pct
-                    }
-                }
+                pct = Double(pctStr)
             }
 
             // Parse charging state
             let charging = output.contains("AC Power") || output.contains("charging")
-            DispatchQueue.main.async {
-                self.isCharging = charging
-            }
 
-            // Parse time remaining: "3:45 remaining" or "2:30 until charged"
+            // Parse time remaining
+            var timeStr: String?
             if let timeMatch = output.range(of: #"(\d+:\d+)\s*(remaining|until charged)"#, options: .regularExpression) {
-                let timeStr = String(output[timeMatch])
-                if let timeRange = timeStr.range(of: #"\d+:\d+"#, options: .regularExpression) {
-                    let timeValue = String(timeStr[timeRange])
+                let fullTime = String(output[timeMatch])
+                if let timeRange = fullTime.range(of: #"\d+:\d+"#, options: .regularExpression) {
+                    let timeValue = String(fullTime[timeRange])
                     let parts = timeValue.split(separator: ":")
                     if parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) {
-                        DispatchQueue.main.async {
-                            if timeStr.contains("until charged") {
-                                self.timeRemaining = "\(h)h \(m)m to full"
-                            } else {
-                                self.timeRemaining = "\(h)h \(m)m"
-                            }
-                        }
+                        timeStr = fullTime.contains("until charged") ? "\(h)h \(m)m to full" : "\(h)h \(m)m"
                     }
                 }
             } else if output.contains("AC Power") && !output.contains("charging") {
-                DispatchQueue.main.async {
-                    self.timeRemaining = "Fully Charged"
-                }
+                timeStr = "Fully Charged"
             }
 
-            // Get cycle count via ioreg (simpler parsing)
-            let cycleTask = Process()
-            cycleTask.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
-            cycleTask.arguments = ["-l", "-w0", "-p", "IOService"]
-            let cyclePipe = Pipe()
-            cycleTask.standardOutput = cyclePipe
-
-            do {
-                try cycleTask.run()
-                cycleTask.waitUntilExit()
-                let cycleData = cyclePipe.fileHandleForReading.readDataToEndOfFile()
-                if let cycleOutput = String(data: cycleData, encoding: .utf8),
-                   let cycleMatch = cycleOutput.range(of: #""CycleCount"\s*=\s*(\d+)"#, options: .regularExpression) {
-                    let numStr = cycleOutput[cycleMatch].filter { $0.isNumber }
-                    if let count = Int(numStr) {
-                        DispatchQueue.main.async {
-                            self.cycleCount = count
-                            if count < 500 {
-                                self.batteryHealth = "Excellent"
-                            } else if count < 800 {
-                                self.batteryHealth = "Good"
-                            } else if count < 1000 {
-                                self.batteryHealth = "Fair"
-                            } else {
-                                self.batteryHealth = "Service Soon"
-                            }
-                        }
-                    }
-                }
-            } catch {
-                // Cycle count unavailable on desktop Macs
-                DispatchQueue.main.async {
-                    self.batteryHealth = "N/A"
-                }
+            DispatchQueue.main.async {
+                if let pct = pct { self.batteryPercentage = pct }
+                self.isCharging = charging
+                if let timeStr = timeStr { self.timeRemaining = timeStr }
             }
         } catch {
             // No battery (desktop Mac)
@@ -194,6 +171,42 @@ class SystemHealthMonitor: ObservableObject {
                 self.batteryPercentage = 100
                 self.isCharging = true
                 self.timeRemaining = "AC Power"
+                self.batteryHealth = "N/A"
+            }
+        }
+    }
+
+    private func readCycleCount() {
+        let cycleTask = Process()
+        cycleTask.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
+        cycleTask.arguments = ["-l", "-w0", "-p", "IOService"]
+        let cyclePipe = Pipe()
+        cycleTask.standardOutput = cyclePipe
+
+        do {
+            try cycleTask.run()
+            cycleTask.waitUntilExit()
+            let cycleData = cyclePipe.fileHandleForReading.readDataToEndOfFile()
+            if let cycleOutput = String(data: cycleData, encoding: .utf8),
+               let cycleMatch = cycleOutput.range(of: #""CycleCount"\s*=\s*(\d+)"#, options: .regularExpression) {
+                let numStr = cycleOutput[cycleMatch].filter { $0.isNumber }
+                if let count = Int(numStr) {
+                    DispatchQueue.main.async {
+                        self.cycleCount = count
+                        if count < 500 {
+                            self.batteryHealth = "Excellent"
+                        } else if count < 800 {
+                            self.batteryHealth = "Good"
+                        } else if count < 1000 {
+                            self.batteryHealth = "Fair"
+                        } else {
+                            self.batteryHealth = "Service Soon"
+                        }
+                    }
+                }
+            }
+        } catch {
+            DispatchQueue.main.async {
                 self.batteryHealth = "N/A"
             }
         }

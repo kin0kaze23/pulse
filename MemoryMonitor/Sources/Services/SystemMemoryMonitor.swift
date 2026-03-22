@@ -9,9 +9,14 @@ class SystemMemoryMonitor: ObservableObject {
     @Published var pressureLevel: MemoryPressureLevel = .normal
     @Published var memoryHistory: [MemoryHistoryEntry] = []
     @Published var isMonitoring = false
+    @Published var lastUpdated: Date?
 
     private var timer: Timer?
-    private let maxHistoryEntries = 1800 // ~60 min at 2s interval
+    private let maxHistoryEntries = 600 // ~30 min at 3s interval
+    
+    // Kernel memory pressure monitoring
+    private var pressureSource: DispatchSourceMemoryPressure?
+    private var lastKernelPressureEvent: MemoryPressureLevel?
 
     private init() {}
 
@@ -20,6 +25,9 @@ class SystemMemoryMonitor: ObservableObject {
     func startMonitoring(interval: Double = 2.0) {
         stopMonitoring()
         isMonitoring = true
+        
+        // Start kernel pressure monitoring
+        startKernelPressureMonitoring()
 
         // Immediate first read
         updateMemoryInfo()
@@ -32,7 +40,41 @@ class SystemMemoryMonitor: ObservableObject {
     func stopMonitoring() {
         timer?.invalidate()
         timer = nil
+        pressureSource?.cancel()
+        pressureSource = nil
+        lastKernelPressureEvent = nil
         isMonitoring = false
+    }
+    
+    // MARK: - Kernel Memory Pressure Monitoring
+    
+    private func startKernelPressureMonitoring() {
+        pressureSource?.cancel()
+        
+        let source = DispatchSource.makeMemoryPressureSource(
+            eventMask: [.normal, .warning, .critical],
+            queue: .main
+        )
+        
+        source.setEventHandler { [weak self] in
+            guard let self, let source = self.pressureSource else { return }
+            let event = source.data
+            let kernelLevel: MemoryPressureLevel
+            switch event {
+            case .critical: kernelLevel = .critical
+            case .warning:  kernelLevel = .warning
+            default:        kernelLevel = .normal
+            }
+            
+            // Kernel signal takes priority over percentage-based calculation
+            DispatchQueue.main.async {
+                self.lastKernelPressureEvent = kernelLevel
+                self.pressureLevel = kernelLevel
+            }
+        }
+        
+        source.resume()
+        pressureSource = source
     }
 
     // MARK: - Core Memory Reading
@@ -42,7 +84,12 @@ class SystemMemoryMonitor: ObservableObject {
 
         DispatchQueue.main.async {
             self.currentMemory = info
-            self.pressureLevel = self.calculatePressure(usedPercentage: info.usedPercentage)
+            self.lastUpdated = Date()
+            
+            // Use kernel pressure if available, otherwise fall back to percentage-based
+            if self.lastKernelPressureEvent == nil {
+                self.pressureLevel = self.calculatePressureFallback(usedPercentage: info.usedPercentage)
+            }
 
             // Add to history
             let entry = MemoryHistoryEntry(
@@ -118,9 +165,9 @@ class SystemMemoryMonitor: ObservableObject {
         )
     }
 
-    // MARK: - Pressure Calculation
+    // MARK: - Pressure Calculation (Fallback)
 
-    private func calculatePressure(usedPercentage: Double) -> MemoryPressureLevel {
+    private func calculatePressureFallback(usedPercentage: Double) -> MemoryPressureLevel {
         if usedPercentage >= 95 {
             return .critical
         } else if usedPercentage >= 85 {

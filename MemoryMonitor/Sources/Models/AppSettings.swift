@@ -1,8 +1,15 @@
 import Foundation
 import Combine
+import ServiceManagement
 
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
+
+    static let defaultAlertThresholds: [AlertThreshold] = [
+        AlertThreshold(percentage: 80, label: "Moderate", soundEnabled: false),
+        AlertThreshold(percentage: 90, label: "High", soundEnabled: false),
+        AlertThreshold(percentage: 95, label: "Critical", soundEnabled: false)
+    ]
 
     // MARK: - Monitoring Settings
     @Published var refreshInterval: Double {
@@ -18,7 +25,10 @@ class AppSettings: ObservableObject {
     }
 
     @Published var launchAtLogin: Bool {
-        didSet { UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin") }
+        didSet {
+            UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
+            applyLaunchAtLogin(launchAtLogin)
+        }
     }
 
     // MARK: - Alert Thresholds
@@ -87,6 +97,56 @@ class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(menuBarDisplayMode.rawValue, forKey: "menuBarDisplayMode") }
     }
 
+    // MARK: - Lite Mode (minimal menu bar, no heavy popover)
+    @Published var liteMode: Bool {
+        didSet { UserDefaults.standard.set(liteMode, forKey: "liteMode") }
+    }
+
+    // MARK: - Cleanup Settings
+    @Published var cleanXcodeDerivedData: Bool {
+        didSet { UserDefaults.standard.set(cleanXcodeDerivedData, forKey: "cleanXcodeDerivedData") }
+    }
+
+    @Published var cleanXcodeDeviceSupport: Bool {
+        didSet { UserDefaults.standard.set(cleanXcodeDeviceSupport, forKey: "cleanXcodeDeviceSupport") }
+    }
+
+    @Published var whitelistedPaths: [String] {
+        didSet { UserDefaults.standard.set(whitelistedPaths, forKey: "whitelistedPaths") }
+    }
+
+    // MARK: - Auto Cleanup Settings
+    @Published var autoCleanupEnabled: Bool {
+        didSet { UserDefaults.standard.set(autoCleanupEnabled, forKey: "autoCleanupEnabled") }
+    }
+
+    @Published var autoCleanupIntervalHours: Int {
+        didSet { UserDefaults.standard.set(autoCleanupIntervalHours, forKey: "autoCleanupIntervalHours") }
+    }
+
+    @Published var autoCleanupOnCriticalMemory: Bool {
+        didSet { UserDefaults.standard.set(autoCleanupOnCriticalMemory, forKey: "autoCleanupOnCriticalMemory") }
+    }
+
+    // MARK: - Cleanup History
+    @Published var totalFreedMB: Double {
+        didSet { UserDefaults.standard.set(totalFreedMB, forKey: "totalFreedMB") }
+    }
+
+    @Published var totalCleanupCount: Int {
+        didSet { UserDefaults.standard.set(totalCleanupCount, forKey: "totalCleanupCount") }
+    }
+
+    @Published var lastCleanupDate: Date? {
+        didSet { 
+            if let date = lastCleanupDate {
+                UserDefaults.standard.set(date, forKey: "lastCleanupDate")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "lastCleanupDate")
+            }
+        }
+    }
+
     enum MemoryUnit: String, CaseIterable {
         case gb = "GB"
         case mb = "MB"
@@ -107,7 +167,7 @@ class AppSettings: ObservableObject {
         self.topProcessesCount = UserDefaults.standard.object(forKey: "topProcessesCount") as? Int ?? 10
         self.historyDurationMinutes = UserDefaults.standard.object(forKey: "historyDurationMinutes") as? Int ?? 60
         self.notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
-        self.alertCooldownMinutes = UserDefaults.standard.object(forKey: "alertCooldownMinutes") as? Int ?? 5
+        self.alertCooldownMinutes = UserDefaults.standard.object(forKey: "alertCooldownMinutes") as? Int ?? 10
 
         self.autoKillEnabled = UserDefaults.standard.object(forKey: "autoKillEnabled") as? Bool ?? false
         self.autoKillMemoryGB = UserDefaults.standard.object(forKey: "autoKillMemoryGB") as? Double ?? 5.0
@@ -124,23 +184,74 @@ class AppSettings: ObservableObject {
 
         let menuBarRaw = UserDefaults.standard.string(forKey: "menuBarDisplayMode") ?? MenuBarDisplayMode.compact.rawValue
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: menuBarRaw) ?? .compact
+        self.liteMode = UserDefaults.standard.object(forKey: "liteMode") as? Bool ?? false
+
+        // Cleanup settings
+        self.cleanXcodeDerivedData = UserDefaults.standard.object(forKey: "cleanXcodeDerivedData") as? Bool ?? false
+        self.cleanXcodeDeviceSupport = UserDefaults.standard.object(forKey: "cleanXcodeDeviceSupport") as? Bool ?? false
+        self.whitelistedPaths = UserDefaults.standard.stringArray(forKey: "whitelistedPaths") ?? []
+
+        // Auto cleanup settings
+        self.autoCleanupEnabled = UserDefaults.standard.object(forKey: "autoCleanupEnabled") as? Bool ?? false
+        self.autoCleanupIntervalHours = UserDefaults.standard.object(forKey: "autoCleanupIntervalHours") as? Int ?? 24
+        self.autoCleanupOnCriticalMemory = UserDefaults.standard.object(forKey: "autoCleanupOnCriticalMemory") as? Bool ?? true
+
+        // Cleanup history
+        self.totalFreedMB = UserDefaults.standard.object(forKey: "totalFreedMB") as? Double ?? 0
+        self.totalCleanupCount = UserDefaults.standard.object(forKey: "totalCleanupCount") as? Int ?? 0
+        self.lastCleanupDate = UserDefaults.standard.object(forKey: "lastCleanupDate") as? Date
 
         // Load thresholds or set defaults
         if let data = UserDefaults.standard.data(forKey: "alertThresholds"),
            let decoded = try? JSONDecoder().decode([AlertThreshold].self, from: data) {
-            self.alertThresholds = decoded
+            self.alertThresholds = Self.sanitizedThresholds(decoded)
         } else {
-            self.alertThresholds = [
-                AlertThreshold(percentage: 75, label: "Moderate"),
-                AlertThreshold(percentage: 85, label: "High"),
-                AlertThreshold(percentage: 95, label: "Critical")
-            ]
+            self.alertThresholds = Self.defaultAlertThresholds
         }
+        
+        // Sync launch at login status with SMAppService
+        syncLaunchAtLoginStatus()
+    }
+
+    private static func sanitizedThresholds(_ thresholds: [AlertThreshold]) -> [AlertThreshold] {
+        let validPercentages = [80.0, 90.0, 95.0]
+        let hasLegacyThresholds = thresholds.contains { !validPercentages.contains($0.percentage) }
+        guard !hasLegacyThresholds, thresholds.count == 3 else {
+            return defaultAlertThresholds
+        }
+
+        return thresholds.map { threshold in
+            var normalized = threshold
+            normalized.soundEnabled = false
+            normalized.notificationEnabled = true
+            return normalized
+        }.sorted { $0.percentage < $1.percentage }
     }
 
     private func saveThresholds() {
         if let encoded = try? JSONEncoder().encode(alertThresholds) {
             UserDefaults.standard.set(encoded, forKey: "alertThresholds")
+        }
+    }
+    
+    // MARK: - Launch at Login
+    
+    private func applyLaunchAtLogin(_ enable: Bool) {
+        do {
+            if enable {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            print("[AppSettings] Launch at login failed: \(error)")
+        }
+    }
+    
+    private func syncLaunchAtLoginStatus() {
+        let actualStatus = SMAppService.mainApp.status == .enabled
+        if launchAtLogin != actualStatus {
+            launchAtLogin = actualStatus
         }
     }
 }
