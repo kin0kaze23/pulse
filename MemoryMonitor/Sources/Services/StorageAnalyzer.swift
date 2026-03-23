@@ -224,7 +224,7 @@ class StorageAnalyzer: ObservableObject {
                 
                 // Look for node_modules
                 if url.lastPathComponent == "node_modules" {
-                    let sizeGB = directorySizeGB(url.path)
+                    let sizeGB = DirectorySizeUtility.directorySizeGB(url.path)
                     guard sizeGB > 0.01 else { continue }
                     
                     // Get parent folder name for context
@@ -277,7 +277,7 @@ class StorageAnalyzer: ObservableObject {
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else { continue }
             
-            let sizeGB = directorySizeGB(dirPath)
+            let sizeGB = DirectorySizeUtility.directorySizeGB(dirPath)
             guard sizeGB > 0.01 else { continue }
             
             // Try to get device name from Info.plist
@@ -405,7 +405,7 @@ class StorageAnalyzer: ObservableObject {
             let modified: Date?
             
             if isDir.boolValue {
-                sizeGB = directorySizeGB(filePath)
+                sizeGB = DirectorySizeUtility.directorySizeGB(filePath)
                 modified = nil
             } else {
                 guard let attrs = try? FileManager.default.attributesOfItem(atPath: filePath) else { continue }
@@ -448,7 +448,7 @@ class StorageAnalyzer: ObservableObject {
         // ~/Library/Messages/Attachments
         let attachmentsPath = NSString(string: "~/Library/Messages/Attachments").expandingTildeInPath
         
-        let sizeGB = directorySizeGB(attachmentsPath)
+        let sizeGB = DirectorySizeUtility.directorySizeGB(attachmentsPath)
         totalGB = sizeGB
         
         var items: [StorageItem] = []
@@ -467,31 +467,6 @@ class StorageAnalyzer: ObservableObject {
         DispatchQueue.main.async {
             self.messagesAttachments = items
             self.totalMessagesGB = totalGB
-        }
-    }
-    
-    // MARK: - Helpers
-    
-    private func directorySizeGB(_ path: String) -> Double {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/du")
-        task.arguments = ["-sk", path]
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return 0 }
-            
-            let kb = output.split(separator: "\t").first.flatMap { Double($0) } ?? 0
-            return kb / (1024 * 1024) // KB to GB
-        } catch {
-            return 0
         }
     }
     

@@ -77,9 +77,9 @@ struct CleanupConfirmationView: View {
         .padding(16)
     }
     
-    private func categoryGroups(from items: [ComprehensiveOptimizer.CleanupPlan.CleanupItem]) -> [(category: ComprehensiveOptimizer.CleanupPlan.CleanupItem.Category, items: [ComprehensiveOptimizer.CleanupPlan.CleanupItem])] {
+    private func categoryGroups(from items: [ComprehensiveOptimizer.CleanupPlan.CleanupItem]) -> [(category: OptimizeResult.Category, items: [ComprehensiveOptimizer.CleanupPlan.CleanupItem])] {
         let grouped = Dictionary(grouping: items) { $0.category }
-        return ComprehensiveOptimizer.CleanupPlan.CleanupItem.Category.allCases.compactMap { category in
+        return OptimizeResult.Category.allCases.compactMap { category in
             guard let items = grouped[category], !items.isEmpty else { return nil }
             return (category, items)
         }
@@ -173,7 +173,7 @@ struct SummaryPill: View {
 }
 
 struct CategorySection: View {
-    let category: ComprehensiveOptimizer.CleanupPlan.CleanupItem.Category
+    let category: OptimizeResult.Category
     let items: [ComprehensiveOptimizer.CleanupPlan.CleanupItem]
     
     @State private var isExpanded = true

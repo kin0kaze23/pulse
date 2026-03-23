@@ -4,7 +4,9 @@ import SwiftUI
 struct MenuBarLiteView: View {
     @ObservedObject var manager: MemoryMonitorManager
     @ObservedObject var devMonitor = DeveloperMonitor.shared
+    @ObservedObject var tempMonitor = TemperatureMonitor.shared
     @State private var animateGauges = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,13 +30,30 @@ struct MenuBarLiteView: View {
                 .foregroundColor(.secondary)
                 .padding(.bottom, 16)
 
-            // Three mini gauges
-            HStack(spacing: 10) {
-                litGauge(label: "RAM", value: memoryValue, color: memoryColor, pct: animateGauges ? memoryPercent : 0)
-                litGauge(label: "Swap", value: String(format: "%.1f", devMonitor.swapUsedGB), color: swapColor, pct: animateGauges ? swapPercent : 0)
-                litGauge(label: "CPU", value: cpuValue, color: cpuColor, pct: animateGauges ? cpuPercent : 0)
+            // Horizontal stats bar with icon + value pairs
+            HStack {
+                StatBlock(icon: "memorychip", value: memoryValue, color: memoryColor)
+                StatBlock(icon: "externaldrive", value: String(format: "%.1f", devMonitor.swapUsedGB), color: swapColor)
+                StatBlock(icon: "cpu", value: cpuValue, color: cpuColor)
+                
+                // Only show temp if it's detected (>0)
+                if tempMonitor.maxTemperature > 0 {
+                    StatBlock(icon: "thermometer", value: String(format: "%.0f°", tempMonitor.maxTemperature), color: Color.temperature(tempMonitor.maxTemperature))
+                } else {
+                    // Placeholder to maintain consistent layout
+                    HStack(spacing: 2) {
+                        Image(systemName: "thermometer")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text("--°")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: 60)
+                    .fixedSize()
+                }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.bottom, 14)
 
             // Optimize button — always visible, shimmer when working
@@ -60,13 +79,26 @@ struct MenuBarLiteView: View {
             navigationBar
         }
         .frame(width: 280)
+        .overlay(
+            // Show confirmation dialog when needed in menu bar
+            Group {
+                if manager.optimizer.showCleanupConfirmation {
+                    ConfirmationDialogOverlay()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.5))
+                }
+            }
+        )
         .animation(DesignSystem.Animation.standard, value: manager.optimizer.isWorking)
         .animation(DesignSystem.Animation.standard, value: manager.optimizer.lastResult?.timestamp)
         .onAppear {
             devMonitor.start()
+            tempMonitor.startMonitoring()
             withAnimation(DesignSystem.Animation.entrance.delay(0.1)) { animateGauges = true }
         }
-        .onDisappear { } // Don't stop - let it run continuously
+        .onDisappear { 
+            tempMonitor.stopMonitoring()
+        }
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -77,6 +109,110 @@ struct MenuBarLiteView: View {
             }
         )
     }
+    
+    // MARK: - Confirmation Dialog Overlay (for Menu Bar)
+    
+    private func ConfirmationDialogOverlay() -> some View {
+        VStack {
+            Spacer()
+            ZStack {
+                // Background dimmer
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                
+                // Compact confirmation for menu bar context
+                VStack(spacing: 8) {
+                    // Header
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.yellow)
+                        
+                        Text("Confirm Optimization")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                        
+                        Spacer()
+                    }
+                    .padding(12)
+                    
+                    // Summary of items to clean
+                    if let plan = manager.optimizer.pendingCleanupPlan {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(plan.itemCount) items")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text(plan.totalSizeText)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            // Show categories if we want more detail
+                            LazyHStack(spacing: 8) {
+                                if plan.items.contains(where: { $0.category == .developer }) {
+                                    Label("Dev", systemImage: "terminal")
+                                        .font(.system(size: 10))
+                                        .labelStyle(.iconOnly)
+                                        .padding(4)
+                                        .background(Circle().fill(Color.purple.opacity(0.2)))
+                                }
+                                if plan.items.contains(where: { $0.category == .browser }) {
+                                    Label("Browser", systemImage: "globe")
+                                        .font(.system(size: 10))
+                                        .labelStyle(.iconOnly)
+                                        .padding(4)
+                                        .background(Circle().fill(Color.blue.opacity(0.2)))
+                                }
+                                if plan.items.contains(where: { $0.category == .system }) {
+                                    Label("System", systemImage: "desktopcomputer")
+                                        .font(.system(size: 10))
+                                        .labelStyle(.iconOnly)
+                                        .padding(4)
+                                        .background(Circle().fill(Color.green.opacity(0.2)))
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                    }
+                    
+                    // Note that full details available in dashboard
+                    Text("See full details in Dashboard")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                    
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    // Action buttons
+                    HStack(spacing: 8) {
+                        Button("Cancel") {
+                            manager.optimizer.cancelCleanup()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.secondary)
+                        
+                        Spacer()
+                        
+                        Button("Clean \(manager.optimizer.pendingCleanupPlan?.totalSizeText ?? "")") {
+                            // Execute via main optimizer
+                            manager.optimizer.executeCleanup()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    }
+                    .padding(12)
+                }
+                .frame(maxWidth: 270) // Fit menu bar width
+                .background(Color(nsColor: .windowBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+            }
+        }
+        .frame(maxHeight: 250)  // Reasonable height for menu overlay
+    }
+
     
     // MARK: - Optimize Button
     
@@ -230,43 +366,19 @@ struct MenuBarLiteView: View {
         .padding(.vertical, DesignSystem.Spacing.sm + 2)
     }
 
-    // MARK: - Mini Gauge
+    // MARK: - Stat Block Component
 
-    private func litGauge(label: String, value: String, color: Color, pct: Double) -> some View {
-        VStack(spacing: DesignSystem.Spacing.xs + 2) {
-            ZStack {
-                Circle()
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 7)
-                Circle()
-                    .trim(from: 0, to: CGFloat(min(pct, 100)) / 100.0)
-                    .stroke(
-                        color.gradient,
-                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .animation(DesignSystem.Animation.emphasis, value: pct)
-                VStack(spacing: 0) {
-                    Text(value)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(color)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(width: 58, height: 58)
-
-            Text(label.uppercased())
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .tracking(1)
-                .foregroundColor(.secondary)
+    private func StatBlock(icon: String, value: String, color: Color) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(color)
+            Text(value)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(color)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignSystem.Spacing.sm + 2)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
-                .fill(color.opacity(0.06))
-        )
+        .frame(maxWidth: 60)
+        .fixedSize()
     }
 
     // MARK: - Nav Pill

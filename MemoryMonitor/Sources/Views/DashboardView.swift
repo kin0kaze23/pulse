@@ -7,23 +7,30 @@ struct DashboardView: View {
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
     @State private var selectedTab: Tab = .health
     @State private var isViewVisible = false
+    @Environment(\.openWindow) private var openWindow
 
     enum Tab: String, CaseIterable {
         case health = "Health"
         case memory = "Memory"
         case system = "System"
+        case caches = "Caches"
         case optimizer = "Optimizer"
         case developer = "Developer"
         case security = "Security"
+        case history = "History"
+        case diskexplorer = "Disk Explorer"
 
         var icon: String {
             switch self {
             case .health: return "heart.text.square.fill"
             case .memory: return "memorychip"
             case .system: return "cpu"
+            case .caches: return "externaldrive.fill"
             case .optimizer: return "sparkles"
             case .developer: return "terminal.fill"
             case .security: return "shield.checkered"
+            case .history: return "chart.xyaxis.line"
+            case .diskexplorer: return "internaldrive"
             }
         }
     }
@@ -217,6 +224,9 @@ struct DashboardView: View {
         case .system:
             SystemView()
                 .staggeredEntrance(delay: 0.1)
+        case .caches:
+            PackageManagerCachesView()
+                .staggeredEntrance(delay: 0.1)
         case .optimizer:
             OptimizerView()
                 .staggeredEntrance(delay: 0.1)
@@ -225,6 +235,12 @@ struct DashboardView: View {
                 .staggeredEntrance(delay: 0.1)
         case .security:
             SecurityView()
+                .staggeredEntrance(delay: 0.1)
+        case .history:
+            HistoryChartsView()
+                .staggeredEntrance(delay: 0.1)
+        case .diskexplorer:
+            DiskExplorerView()
                 .staggeredEntrance(delay: 0.1)
         }
     }
@@ -236,15 +252,8 @@ struct DashboardView: View {
     }
 
     private func openSettingsWindow() {
-        // Open the settings window
-        for window in NSApp.windows {
-            if window.title == "Settings" {
-                window.makeKeyAndOrderFront(nil)
-                return
-            }
-        }
-        // If not found, activate app and show
-        NSApp.activate(ignoringOtherApps: true)
+        // Open the settings window using SwiftUI's openWindow environment
+        openWindow(id: "settings")
     }
 }
 

@@ -45,24 +45,62 @@ class DeveloperProfilesEngine: ObservableObject {
     }
 
     func refresh() {
-        guard !isRefreshing else { return }
-        DispatchQueue.main.async { self.isRefreshing = true }
+        guard !isRefreshing else { 
+            print("[DeveloperProfilesEngine] Skipping refresh: already refreshing")
+            return 
+        }
+        
+        DispatchQueue.main.async { 
+            print("[DeveloperProfilesEngine] Starting refresh")
+            self.isRefreshing = true 
+        }
 
         workQueue.async { [weak self] in
-            guard let self else { return }
+            guard let self = self else { 
+                print("[DeveloperProfilesEngine] Self is nil, exiting refresh")
+                return 
+            }
+            
+            let startTime = CFAbsoluteTimeGetCurrent()
+            print("[DeveloperProfilesEngine] Getting process data")
             let psOutput = self.runPS()
+            
+            // Limit refresh time to avoid hanging indefinitely
+            let maxRefreshTime: TimeInterval = 10.0  // 10 seconds max
+            
             var states: [ProfileState] = []
 
+            print("[DeveloperProfilesEngine] Starting profile detection")
             for profile in BuiltinProfiles.all {
+                let profileStartTime = CFAbsoluteTimeGetCurrent()
+                
                 let isDetected = self.detect(profile.detectMethod)
-                guard isDetected else { continue }  // Only show installed tools
+                guard isDetected else { 
+                    print("[DeveloperProfilesEngine] Profile \(profile.name) not detected, skipping")
+                    continue 
+                }  // Only show installed tools
+                
+                // Check for timeout periodically during processing
+                let profileCheckTime = CFAbsoluteTimeGetCurrent()
+                if profileCheckTime - startTime > maxRefreshTime {
+                    print("[DeveloperProfilesEngine] Timeout reached, stopping detection")
+                    break
+                }
 
                 let isRunning = self.isRunning(profile, psOutput: psOutput)
                 let memoryMB = self.measureMemory(profile, psOutput: psOutput)
+                
                 var diskSizes: [String: Double] = [:]
                 var totalDisk: Double = 0
 
                 for scan in profile.diskScans {
+                    // Check for timeout again before each expensive directory scan
+                    let scanCheckTime = CFAbsoluteTimeGetCurrent()
+                    if scanCheckTime - startTime > maxRefreshTime {
+                        print("[DeveloperProfilesEngine] Timeout reached during disk scan, stopping")
+                        break
+                    }
+                    
                     let sizeMB = self.estimateDirectorySize(path: scan.path)
                     diskSizes[scan.label] = sizeMB
                     totalDisk += sizeMB
@@ -78,11 +116,20 @@ class DeveloperProfilesEngine: ObservableObject {
                     totalDiskMB: totalDisk,
                     lastUpdated: Date()
                 ))
+                
+                // Ensure each profile isn't taking too long
+                let profileEndTime = CFAbsoluteTimeGetCurrent()
+                if profileEndTime - profileStartTime > 3.0 { // More than 3 seconds per profile
+                    print("[DeveloperProfilesEngine] Profile \(profile.name) took \(profileEndTime - profileStartTime) seconds, considering slow")
+                }
             }
 
             DispatchQueue.main.async {
                 self.profileStates = states
                 self.isRefreshing = false
+                let endTime = CFAbsoluteTimeGetCurrent()
+                let totalTime = endTime - startTime
+                print("[DeveloperProfilesEngine] Refresh completed in \(totalTime)s, found \(states.count) profiles")
             }
         }
     }
@@ -163,24 +210,8 @@ class DeveloperProfilesEngine: ObservableObject {
     }
 
     private func estimateDirectorySize(path: String) -> Double {
-        let expanded = (path as NSString).expandingTildeInPath
-        guard FileManager.default.fileExists(atPath: expanded) else { return 0 }
-        var totalBytes: Int64 = 0
-        guard let enumerator = FileManager.default.enumerator(
-            at: URL(fileURLWithPath: expanded),
-            includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { return 0 }
-        
-        var count = 0
-        for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey]),
-                  values.isDirectory == false else { continue }
-            totalBytes += Int64(values.fileSize ?? 0)
-            count += 1
-            if count > 50_000 { break }
-        }
-        return Double(totalBytes) / (1024 * 1024)
+        // Use du -sk for fast directory size estimation
+        return DirectorySizeUtility.directorySizeMB(path)
     }
 
     private func runPS() -> String {
@@ -190,9 +221,18 @@ class DeveloperProfilesEngine: ObservableObject {
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = FileHandle.nullDevice
-        try? task.run()
-        task.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        do {
+            try task.run()
+            task.waitUntilExit()
+            // Check if exit status is valid to prevent hanging 
+            if task.terminationStatus == 0 {
+                return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            } else {
+                return ""
+            }
+        } catch {
+            return ""  // Return empty if the process fails
+        }
     }
 
     @discardableResult

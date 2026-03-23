@@ -6,6 +6,7 @@ struct HealthView: View {
     @ObservedObject var devMonitor = DeveloperMonitor.shared
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
     @ObservedObject var suggestions = SmartSuggestions.shared
+    @ObservedObject var tempMonitor = TemperatureMonitor.shared
     @State private var showKillConfirmation = false
     @State private var processToKill: ProcessMemoryInfo?
     @State private var showSuccess = false
@@ -52,9 +53,12 @@ struct HealthView: View {
         .onAppear {
             devMonitor.start()
             suggestions.analyze()
+            tempMonitor.startMonitoring()
             withAnimation(DesignSystem.Animation.entrance.delay(0.2)) { animateScore = true }
         }
-        .onDisappear { } // Don't stop - let it run continuously
+        .onDisappear { 
+            tempMonitor.stopMonitoring()
+        }
         .alert("Terminate Process?", isPresented: $showKillConfirmation) {
             Button("Cancel", role: .cancel) { processToKill = nil }
             Button("Terminate", role: .destructive) {
@@ -169,6 +173,9 @@ struct HealthView: View {
                 percent: browserPercent,
                 alert: devMonitor.browserTabCount > 30
             )
+            
+            // Temperature Status
+            temperatureTile
         }
     }
 
@@ -241,6 +248,90 @@ struct HealthView: View {
                 .animation(DesignSystem.Animation.standard, value: percent)
         }
         .frame(width: 40, height: 40)
+    }
+    
+    // MARK: - Temperature Tile
+    
+    private var temperatureTile: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            // Icon with animated glow for high temps
+            ZStack {
+                Circle()
+                    .fill(temperatureColor.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: temperatureIcon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(temperatureColor)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            
+            // Content
+            VStack(alignment: .leading, spacing: 2) {
+                Text("TEMPERATURE")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .tracking(1)
+                
+                Text(temperatureText)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .contentTransition(.numericText())
+                
+                Text(temperatureDetail)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundColor(temperatureColor)
+            }
+            
+            Spacer()
+            
+            // Temperature Ring
+            TemperatureRingView(temperature: tempMonitor.maxTemperature)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                        .stroke(temperatureAlert ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+                )
+        )
+        .hoverEffect()
+    }
+    
+    private var temperatureColor: Color {
+        Color.temperature(tempMonitor.maxTemperature)
+    }
+    
+    private var temperatureIcon: String {
+        switch tempMonitor.maxTemperature {
+        case 0..<50: return "thermometer.medium.snowflake"
+        case 50..<70: return "thermometer.medium"
+        case 70..<85: return "thermometer.sun"
+        default: return "thermometer.sun.fill"
+        }
+    }
+    
+    private var temperatureText: String {
+        if tempMonitor.maxTemperature > 0 {
+            return String(format: "%.0f°C", tempMonitor.maxTemperature)
+        }
+        return "--°C"
+    }
+    
+    private var temperatureDetail: String {
+        switch tempMonitor.maxTemperature {
+        case 0: return tempMonitor.isMonitoring ? "Reading..." : "No sensor"
+        case 0..<50: return "Cool"
+        case 50..<70: return "Warm"
+        case 70..<85: return "Hot"
+        default: return "Critical"
+        }
+    }
+    
+    private var temperatureAlert: Bool {
+        tempMonitor.maxTemperature >= 85
     }
 
     // MARK: - Primary Action Card

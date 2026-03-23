@@ -616,16 +616,8 @@ class SmartSuggestions: ObservableObject {
 
     private func getDownloadsSize() -> Int64 {
         let downloads = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
-        var total: Int64 = 0
-
-        if let enumerator = FileManager.default.enumerator(at: downloads, includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
-                if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                    total += Int64(size)
-                }
-            }
-        }
-        return total / (1024 * 1024) // MB
+        let sizeMB = DirectorySizeUtility.directorySizeMB(downloads.path)
+        return Int64(sizeMB)
     }
 
     private func formatBytes(_ mb: Int64) -> String {

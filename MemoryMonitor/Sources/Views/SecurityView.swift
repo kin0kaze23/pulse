@@ -53,6 +53,12 @@ struct SecurityView: View {
                 persistenceItemsSection
                     .staggeredEntrance(delay: 0.25)
             }
+            
+            // Deep Security Scan Section
+            if !scanner.isScanning {
+                deepSecuritySection
+                    .staggeredEntrance(delay: 0.30)
+            }
         }
         .padding(DesignSystem.Spacing.lg)
         .onAppear {
@@ -484,6 +490,69 @@ struct SecurityView: View {
         }
     }
     
+    // MARK: - Deep Security Section
+    
+    @State private var showDeepSecurity = false
+    
+    private var deepSecuritySection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.red, .orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                Text("Deep Security Scan")
+                    .font(.system(.headline, design: .rounded))
+                
+                Spacer()
+                
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showDeepSecurity.toggle()
+                    }
+                } label: {
+                    Image(systemName: showDeepSecurity ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if showDeepSecurity {
+                SecurityEnhancementsView()
+                    .frame(height: 400)
+            } else {
+                HStack(spacing: 16) {
+                    deepScanHint(icon: "puzzlepiece.extension", text: "Browser Extensions")
+                    deepScanHint(icon: "clock", text: "Cron Jobs")
+                    deepScanHint(icon: "checkmark.seal", text: "Code Signing")
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(.ultraThinMaterial)
+        )
+    }
+    
+    private func deepScanHint(icon: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundColor(.secondary)
+        }
+    }
+
     // MARK: - Helpers
     
     private var groupedItems: [String: [SecurityScanner.PersistenceItem]] {

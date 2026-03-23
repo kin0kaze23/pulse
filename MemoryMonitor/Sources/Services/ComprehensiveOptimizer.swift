@@ -103,7 +103,7 @@ class ComprehensiveOptimizer: ObservableObject {
             let id = UUID()
             let name: String
             let sizeMB: Double
-            let category: Category
+            let category: OptimizeResult.Category
             let path: String
             let isDestructive: Bool
             let requiresAppClosed: Bool
@@ -117,40 +117,6 @@ class ComprehensiveOptimizer: ObservableObject {
                 }
                 return String(format: "%.0f MB", sizeMB)
             }
-
-            enum Category: String, CaseIterable {
-                case developer = "Developer"
-                case browser = "Browser"
-                case application = "Applications"
-                case system = "System"
-                case memory = "Memory"
-                case disk = "Disk"
-                case logs = "Logs"
-
-                var icon: String {
-                    switch self {
-                    case .developer: return "chevron.left.forwardslash.chevron.right"
-                    case .browser: return "globe"
-                    case .application: return "app.fill"
-                    case .system: return "gearshape.fill"
-                    case .memory: return "memorychip"
-                    case .disk: return "externaldrive.fill"
-                    case .logs: return "doc.text.fill"
-                    }
-                }
-
-                var color: String {
-                    switch self {
-                    case .developer: return "purple"
-                    case .browser: return "blue"
-                    case .application: return "cyan"
-                    case .system: return "green"
-                    case .memory: return "orange"
-                    case .disk: return "red"
-                    case .logs: return "yellow"
-                    }
-                }
-            }
         }
         
         struct CleanupWarning: Identifiable {
@@ -161,45 +127,10 @@ class ComprehensiveOptimizer: ObservableObject {
         }
     }
 
-    // MARK: - Optimize Result
-
-    struct OptimizeResult {
-        let steps: [Step]
-        let skipped: [SkippedItem]
-        let totalFreedMB: Double
-        let timestamp: Date
-
-        struct Step {
-            let name: String
-            let freedMB: Double
-            let success: Bool
-            let category: CleanupPlan.CleanupItem.Category
-        }
-        
-        struct SkippedItem: Identifiable {
-            let id = UUID()
-            let name: String
-            let reason: String
-            let sizeMB: Double
-        }
-
-        var summary: String {
-            let successCount = steps.filter(\.success).count
-            let skippedCount = skipped.count
-            
-            var text = ""
-            if totalFreedMB > 1024 {
-                text = String(format: "%.1f GB", totalFreedMB / 1024)
-            } else {
-                text = String(format: "%.0f MB", totalFreedMB)
-            }
-            
-            if skippedCount > 0 {
-                return "\(successCount) cleaned, \(skippedCount) skipped · \(text) freed"
-            }
-            return "\(successCount) items cleaned · \(text) freed"
-        }
-    }
+    // MARK: - Optimize Result (uses shared type)
+    
+    /// Type alias to shared OptimizeResult
+    typealias OptimizeResult = Pulse.OptimizeResult
 
     // MARK: - Settings
 
@@ -414,7 +345,7 @@ class ComprehensiveOptimizer: ObservableObject {
         }
     }
     
-    private func iconForCategory(_ category: CleanupPlan.CleanupItem.Category) -> String {
+    private func iconForCategory(_ category: OptimizeResult.Category) -> String {
         switch category {
         case .developer: return "💻"
         case .browser: return "🌐"
@@ -725,7 +656,7 @@ class ComprehensiveOptimizer: ObservableObject {
         ]
 
         for (name, path) in devCachePaths {
-            let size = quickDirectorySizeMB(path)
+            let size = DirectorySizeUtility.quickDirectorySizeMB(path)
             if size > 20 { // Show if > 20MB
                 items.append(.init(
                     name: name,
@@ -743,7 +674,7 @@ class ComprehensiveOptimizer: ObservableObject {
         // Xcode - requires Xcode to be closed
         let xcodeRunning = isAppRunning("Xcode")
         if settings.cleanXcodeDerivedData {
-            let xcodeSize = quickDirectorySizeMB("~/Library/Developer/Xcode/DerivedData")
+            let xcodeSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/DerivedData")
             if xcodeSize > 50 {
                 items.append(.init(
                     name: "Xcode DerivedData",
@@ -760,7 +691,7 @@ class ComprehensiveOptimizer: ObservableObject {
 
         // Xcode DeviceSupport (only if enabled)
         if settings.cleanXcodeDeviceSupport {
-            let deviceSize = quickDirectorySizeMB("~/Library/Developer/Xcode/iOS DeviceSupport")
+            let deviceSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/iOS DeviceSupport")
             if deviceSize > 100 {
                 items.append(.init(
                     name: "iOS DeviceSupport",
@@ -776,7 +707,7 @@ class ComprehensiveOptimizer: ObservableObject {
         }
         
         // Xcode Archives (old builds)
-        let archivesSize = quickDirectorySizeMB("~/Library/Developer/Xcode/Archives")
+        let archivesSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/Archives")
         if archivesSize > 100 {
             items.append(.init(
                 name: "Xcode Archives",
@@ -791,7 +722,7 @@ class ComprehensiveOptimizer: ObservableObject {
         }
         
         // iOS Simulators
-        let simulatorSize = quickDirectorySizeMB("~/Library/Developer/CoreSimulator")
+        let simulatorSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/CoreSimulator")
         if simulatorSize > 500 {
             items.append(.init(
                 name: "iOS Simulators",
@@ -807,7 +738,7 @@ class ComprehensiveOptimizer: ObservableObject {
 
         // JetBrains - check if running
         let jetbrainsRunning = isAppRunning("IntelliJ IDEA") || isAppRunning("WebStorm") || isAppRunning("PyCharm")
-        let jetbrainsSize = quickDirectorySizeMB("~/Library/Caches/JetBrains")
+        let jetbrainsSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Caches/JetBrains")
         if jetbrainsSize > 50 {
             items.append(.init(
                 name: "JetBrains IDE cache",
@@ -823,7 +754,7 @@ class ComprehensiveOptimizer: ObservableObject {
 
         // VS Code
         let vscodeRunning = isAppRunning("Electron") || isAppRunning("Code Helper")
-        let vscodeSize = quickDirectorySizeMB("~/Library/Caches/com.microsoft.VSCode")
+        let vscodeSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Caches/com.microsoft.VSCode")
         if vscodeSize > 30 {
             items.append(.init(
                 name: "VS Code cache",
@@ -855,7 +786,7 @@ class ComprehensiveOptimizer: ObservableObject {
         }
 
         // Homebrew
-        let brewSize = quickDirectorySizeMB("~/Library/Caches/Homebrew")
+        let brewSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Caches/Homebrew")
         if brewSize > 50 {
             items.append(.init(
                 name: "Homebrew cache",
@@ -870,7 +801,7 @@ class ComprehensiveOptimizer: ObservableObject {
         }
         
         // OpenCode DB - significant memory user
-        let opencodeDBSize = quickDirectorySizeMB("~/.local/share/opencode")
+        let opencodeDBSize = DirectorySizeUtility.quickDirectorySizeMB("~/.local/share/opencode")
         if opencodeDBSize > 100 {
             items.append(.init(
                 name: "OpenCode database",
@@ -909,7 +840,7 @@ class ComprehensiveOptimizer: ObservableObject {
         ]
         
         for (name, path, processName, minSize) in appCaches {
-            let size = quickDirectorySizeMB(path)
+            let size = DirectorySizeUtility.quickDirectorySizeMB(path)
             if size > minSize {
                 let isRunning = isAppRunning(processName)
                 items.append(.init(
@@ -1180,7 +1111,7 @@ class ComprehensiveOptimizer: ObservableObject {
         let expandedPath = path.expandingTilde
         guard FileManager.default.fileExists(atPath: expandedPath) else { return 0 }
 
-        let size = directorySizeMB(expandedPath)
+        let size = DirectorySizeUtility.directorySizeMB(expandedPath)
         guard size > 1 else { return 0 }
 
         do {
@@ -1464,76 +1395,16 @@ class ComprehensiveOptimizer: ObservableObject {
             try task.run()
             task.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return directorySizeMB(expanded) }
+            guard let output = String(data: data, encoding: .utf8) else { return DirectorySizeUtility.directorySizeMB(expanded) }
             let kb = output.split(separator: "\t").first.flatMap { Double($0) } ?? 0
             return kb / 1024
         } catch {
-            return directorySizeMB(expanded)
+            return DirectorySizeUtility.directorySizeMB(expanded)
         }
-    }
-
-    private func directorySizeMB(_ path: String) -> Double {
-        guard FileManager.default.fileExists(atPath: path) else { return 0 }
-        var total: UInt64 = 0
-        if let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
-                if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                    total += UInt64(size)
-                }
-            }
-        }
-        return Double(total) / (1024 * 1024)
-    }
-
-    /// Quick directory size estimation - scans only top level for speed
-    /// Returns size in MB, useful for quick estimates before cleanup
-    private func quickDirectorySizeMB(_ path: String) -> Double {
-        let expanded = path.expandingTilde
-        guard FileManager.default.fileExists(atPath: expanded) else { return 0 }
-
-        // Quick estimate: just sum top-level file sizes without deep enumeration
-        var total: UInt64 = 0
-        let fileManager = FileManager.default
-        
-        guard let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: expanded),
-            includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return 0 }
-        
-        var count = 0
-        let maxItems = 1000 // Limit for speed
-        
-        for case let url as URL in enumerator {
-            do {
-                let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
-                if resourceValues.isDirectory == false {
-                    total += UInt64(resourceValues.fileSize ?? 0)
-                }
-            } catch { continue }
-            count += 1
-            if count > maxItems { break } // Stop early for performance
-        }
-        
-        // If we hit the limit, estimate the rest proportionally
-        if count >= maxItems {
-            let estimatedTotal = Double(total) * 2.0 // Rough estimate
-            return estimatedTotal / (1024 * 1024)
-        }
-        
-        return Double(total) / (1024 * 1024)
     }
 
     private func refreshMonitors() {
         SystemMemoryMonitor.shared.updateMemoryInfo()
         ProcessMemoryMonitor.shared.refresh(topN: AppSettings.shared.topProcessesCount)
-    }
-}
-
-// MARK: - String Extension
-
-private extension String {
-    var expandingTilde: String {
-        (self as NSString).expandingTildeInPath
     }
 }
