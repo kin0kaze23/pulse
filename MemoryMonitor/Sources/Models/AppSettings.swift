@@ -2,6 +2,8 @@ import Foundation
 import Combine
 import ServiceManagement
 
+/// Global application settings managed with Combine publisher pattern
+/// Persists settings with UserDefaults and synchronizes with UI state
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
@@ -12,18 +14,22 @@ class AppSettings: ObservableObject {
     ]
 
     // MARK: - Monitoring Settings
+    /// How often to update system statistics in seconds (1s-10s range recommended)
     @Published var refreshInterval: Double {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
     }
 
+    /// Whether to show Pulse icon and functionality in menubar
     @Published var showInMenuBar: Bool {
         didSet { UserDefaults.standard.set(showInMenuBar, forKey: "showInMenuBar") }
     }
 
+    /// Whether to show percentage values in menubar alongside numerical values 
     @Published var showPercentageInMenuBar: Bool {
         didSet { UserDefaults.standard.set(showPercentageInMenuBar, forKey: "showPercentageInMenuBar") }
     }
 
+    /// Automatically start Pulse when computer turns on
     @Published var launchAtLogin: Bool {
         didSet {
             UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
@@ -76,41 +82,53 @@ class AppSettings: ObservableObject {
     }
 
     // MARK: - Feature Toggles
+    /// Display CPU monitoring in main dashboard
     @Published var showCPU: Bool {
         didSet { UserDefaults.standard.set(showCPU, forKey: "showCPU") }
     }
 
+    /// Display disk monitoring in main dashboard  
     @Published var showDisk: Bool {
         didSet { UserDefaults.standard.set(showDisk, forKey: "showDisk") }
     }
 
+    /// Display network monitoring in main dashboard
     @Published var showNetwork: Bool {
         didSet { UserDefaults.standard.set(showNetwork, forKey: "showNetwork") }
     }
 
+    /// Display battery and temperature monitoring in main dashboard
     @Published var showBattery: Bool {
         didSet { UserDefaults.standard.set(showBattery, forKey: "showBattery") }
     }
 
     // MARK: - Menu Bar Display Mode
+    /// How information is shown in menu bar icon and popover
     @Published var menuBarDisplayMode: MenuBarDisplayMode {
         didSet { UserDefaults.standard.set(menuBarDisplayMode.rawValue, forKey: "menuBarDisplayMode") }
     }
 
     // MARK: - Lite Mode (minimal menu bar, no heavy popover)
+    /// When enabled, shows a minimal menu bar with just memory %, reducing CPU overhead
     @Published var liteMode: Bool {
         didSet { UserDefaults.standard.set(liteMode, forKey: "liteMode") }
     }
 
     // MARK: - Cleanup Settings
+    /// Enable automated cleaning of Xcode derived data (compiled objects, indexing data)
+    /// This is safe to enable, Xcode will regenerate as needed
     @Published var cleanXcodeDerivedData: Bool {
         didSet { UserDefaults.standard.set(cleanXcodeDerivedData, forKey: "cleanXcodeDerivedData") }
     }
-
+    
+    /// Clean old Xcode iOS device support files for versions no longer in active development
+    /// Helps keep your development environment lean
     @Published var cleanXcodeDeviceSupport: Bool {
         didSet { UserDefaults.standard.set(cleanXcodeDeviceSupport, forKey: "cleanXcodeDeviceSupport") }
     }
-
+    
+    /// List of file paths that are protected from all cleaning operations
+    /// Add any directories that contain important work you don't want accidentally deleted
     @Published var whitelistedPaths: [String] {
         didSet { UserDefaults.standard.set(whitelistedPaths, forKey: "whitelistedPaths") }
     }
@@ -159,7 +177,9 @@ class AppSettings: ObservableObject {
         case compact = "Both"
     }
 
+    /// Initialize by reading from persistent user settings or using defaults
     private init() {
+        // Load core monitoring settings
         self.refreshInterval = UserDefaults.standard.object(forKey: "refreshInterval") as? Double ?? 2.0
         self.showInMenuBar = UserDefaults.standard.object(forKey: "showInMenuBar") as? Bool ?? true
         self.showPercentageInMenuBar = UserDefaults.standard.object(forKey: "showPercentageInMenuBar") as? Bool ?? true
@@ -169,39 +189,43 @@ class AppSettings: ObservableObject {
         self.notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
         self.alertCooldownMinutes = UserDefaults.standard.object(forKey: "alertCooldownMinutes") as? Int ?? 10
 
+        // Load auto-kill settings
         self.autoKillEnabled = UserDefaults.standard.object(forKey: "autoKillEnabled") as? Bool ?? false
         self.autoKillMemoryGB = UserDefaults.standard.object(forKey: "autoKillMemoryGB") as? Double ?? 5.0
         self.autoKillCPUPercent = UserDefaults.standard.object(forKey: "autoKillCPUPercent") as? Double ?? 90.0
         self.autoKillWarningFirst = UserDefaults.standard.object(forKey: "autoKillWarningFirst") as? Bool ?? true
 
+        // Load feature toggle settings
         self.showCPU = UserDefaults.standard.object(forKey: "showCPU") as? Bool ?? true
         self.showDisk = UserDefaults.standard.object(forKey: "showDisk") as? Bool ?? true
         self.showNetwork = UserDefaults.standard.object(forKey: "showNetwork") as? Bool ?? true
         self.showBattery = UserDefaults.standard.object(forKey: "showBattery") as? Bool ?? true
 
+        // Load and validate memory units
         let unitRaw = UserDefaults.standard.string(forKey: "memoryUnit") ?? MemoryUnit.gb.rawValue
         self.memoryUnit = MemoryUnit(rawValue: unitRaw) ?? .gb
 
+        // Load and validate menu bar display mode 
         let menuBarRaw = UserDefaults.standard.string(forKey: "menuBarDisplayMode") ?? MenuBarDisplayMode.compact.rawValue
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: menuBarRaw) ?? .compact
         self.liteMode = UserDefaults.standard.object(forKey: "liteMode") as? Bool ?? false
 
-        // Cleanup settings
+        // Load cleanup settings
         self.cleanXcodeDerivedData = UserDefaults.standard.object(forKey: "cleanXcodeDerivedData") as? Bool ?? false
         self.cleanXcodeDeviceSupport = UserDefaults.standard.object(forKey: "cleanXcodeDeviceSupport") as? Bool ?? false
         self.whitelistedPaths = UserDefaults.standard.stringArray(forKey: "whitelistedPaths") ?? []
 
-        // Auto cleanup settings
+        // Load auto-cleanup settings
         self.autoCleanupEnabled = UserDefaults.standard.object(forKey: "autoCleanupEnabled") as? Bool ?? false
         self.autoCleanupIntervalHours = UserDefaults.standard.object(forKey: "autoCleanupIntervalHours") as? Int ?? 24
         self.autoCleanupOnCriticalMemory = UserDefaults.standard.object(forKey: "autoCleanupOnCriticalMemory") as? Bool ?? true
 
-        // Cleanup history
+        // Load cleanup history
         self.totalFreedMB = UserDefaults.standard.object(forKey: "totalFreedMB") as? Double ?? 0
         self.totalCleanupCount = UserDefaults.standard.object(forKey: "totalCleanupCount") as? Int ?? 0
         self.lastCleanupDate = UserDefaults.standard.object(forKey: "lastCleanupDate") as? Date
 
-        // Load thresholds or set defaults
+        // Load and validate alert thresholds
         if let data = UserDefaults.standard.data(forKey: "alertThresholds"),
            let decoded = try? JSONDecoder().decode([AlertThreshold].self, from: data) {
             self.alertThresholds = Self.sanitizedThresholds(decoded)
@@ -209,19 +233,26 @@ class AppSettings: ObservableObject {
             self.alertThresholds = Self.defaultAlertThresholds
         }
         
-        // Sync launch at login status with SMAppService
+        // Ensure launch at login status is synchronized with the actual system status
         syncLaunchAtLoginStatus()
     }
 
+    /// Sanitizes alert thresholds to prevent corrupt configuration data from persisting
+    /// - Parameter thresholds: Previously configured thresholds
+    /// - Returns: Valid AlertThreshold array matching current schema requirements 
     private static func sanitizedThresholds(_ thresholds: [AlertThreshold]) -> [AlertThreshold] {
         let validPercentages = [80.0, 90.0, 95.0]
         let hasLegacyThresholds = thresholds.contains { !validPercentages.contains($0.percentage) }
         guard !hasLegacyThresholds, thresholds.count == 3 else {
+            // User's saved settings don't match current schema - return defaults
+            // This handles cases like upgrades between versions with different thresholds
             return defaultAlertThresholds
         }
 
+        // Update properties that may have changed schema structure while preserving percentages
         return thresholds.map { threshold in
             var normalized = threshold
+            // Reset new properties to reasonable defaults during migration
             normalized.soundEnabled = false
             normalized.notificationEnabled = true
             return normalized

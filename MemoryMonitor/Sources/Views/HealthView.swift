@@ -321,6 +321,9 @@ struct HealthView: View {
     }
     
     private var temperatureDetail: String {
+        if !tempMonitor.isMonitoring {
+            return "Sensor not available"
+        }
         switch tempMonitor.maxTemperature {
         case 0: return tempMonitor.isMonitoring ? "Reading..." : "No sensor"
         case 0..<50: return "Cool"

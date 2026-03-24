@@ -131,14 +131,17 @@ struct MenuBarLabel: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(pressureColor)
                 .font(.system(size: 13, weight: .semibold))
+                .help("Memory pressure status: \(pressureTooltip)")
 
             if settings.menuBarDisplayMode == .compact {
                 // Compact mode: show both Memory % and CPU %
                 HStack(spacing: 3) {
                     Text(memText)
+                        .help("Memory Used: \(memPercent)% (\(memUsedGBString) of \(memTotalGBString) GB)")
                     Text("·")
                         .foregroundStyle(.secondary)
                     Text(cpuText)
+                        .help("CPU Usage: \(cpuPercentString)%")
                 }
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(pressureColor)
@@ -147,6 +150,7 @@ struct MenuBarLabel: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(pressureColor)
+                    .help(tooltipText)
             }
         }
         .padding(.horizontal, 6)
@@ -158,9 +162,54 @@ struct MenuBarLabel: View {
         return String(format: "%.0f%%", memory.usedPercentage)
     }
     
+    private var memPercent: Double {
+        guard let memory = manager.systemMonitor.currentMemory else { return 0 }
+        return memory.usedPercentage
+    }
+    
+    private var memUsedGBString: String {
+        guard let memory = manager.systemMonitor.currentMemory else { return "--" }
+        return String(format: "%.1f", memory.usedGB)
+    }
+    
+    private var memTotalGBString: String {
+        guard let memory = manager.systemMonitor.currentMemory else { return "--" }
+        return String(format: "%.0f", memory.totalGB)
+    }
+    
     private var cpuText: String {
         let cpu = manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage
         return String(format: "%.0f%%", cpu)
+    }
+    
+    private var cpuPercentString: String {
+        let cpu = manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage
+        return String(format: "%.0f%%", cpu)
+    }
+    
+    private var pressureTooltip: String {
+        switch manager.systemMonitor.pressureLevel {
+        case .normal: return "Healthy"
+        case .warning: return "Moderate pressure"
+        case .critical: return "High pressure"
+        }
+    }
+    
+    private var tooltipText: String {
+        switch settings.menuBarDisplayMode {
+        case .memoryPercent: 
+            let memory = manager.systemMonitor.currentMemory
+            let percent = memory?.usedPercentage ?? 0
+            return "Memory Pressure: \(pressureTooltip)\nUsed: \(String(format: "%.0f%%", percent)) (\(memUsedGBString) of \(memTotalGBString) GB)"
+        case .memoryGB: return "Memory Pressure: \(pressureTooltip)\nUsed: \(String(format: "%.1f", memUsedGBStringFloat)) GB"
+        case .cpuPercent: return "CPU Usage: \(cpuPercentString)%\nCores: \(manager.cpuMonitor.coreCount)"
+        case .compact: return "Memory: \(String(format: "%.1f GB", memUsedGBStringFloat)) · CPU: \(cpuPercentString)%"
+        }
+    }
+    
+    private var memUsedGBStringFloat: Double {
+        guard let memory = manager.systemMonitor.currentMemory else { return 0.0 }
+        return memory.usedGB
     }
 
     private var pressureColor: Color {

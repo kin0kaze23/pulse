@@ -96,8 +96,10 @@ struct GeneralSettingsContent: View {
                             .frame(width: 50)
                     }
                     Slider(value: $settings.refreshInterval, in: 1...10, step: 0.5)
+                        .help("How often to update memory stats (lower = more frequent)")
 
                     Toggle("Show in Menu Bar", isOn: $settings.showInMenuBar)
+                        .help("Show Pulse in menu bar")
 
                     Toggle("Lite Mode (minimal menu bar)", isOn: $settings.liteMode)
                         .help("Reduces menu bar popover to just memory % and top process. Less CPU overhead.")
@@ -113,8 +115,10 @@ struct GeneralSettingsContent: View {
                         .pickerStyle(.menu)
                         .frame(width: 140)
                     }
+                    .help("Choose what information is shown in the menu bar icon")
 
                     Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+                        .help("Start Pulse automatically when you turn on your Mac")
                 }
                 .padding(8)
             }
@@ -326,13 +330,16 @@ struct AlertSettingsContent: View {
                                 .frame(width: 10, height: 10)
                             Text(threshold.label)
                                 .frame(width: 80, alignment: .leading)
+                                .help("Alert when memory usage reaches this level")
                             Text("\(String(format: "%.0f", threshold.percentage))%")
                                 .font(.system(.caption, design: .monospaced))
+                                .help("Memory usage percentage threshold")
                             Spacer()
                             Toggle("", isOn: binding(for: threshold))
                                 .toggleStyle(.switch)
                                 .labelsHidden()
                         }
+                        .help("Enable/disable \(threshold.label) alerts at \(String(format: "%.0f", threshold.percentage))% memory usage")
                     }
                 }
                 .padding(8)
@@ -378,9 +385,13 @@ struct DisplaySettingsContent: View {
             GroupBox("Feature Toggles") {
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Show CPU Monitoring", isOn: $settings.showCPU)
+                        .help("Toggle whether CPU monitoring is displayed in dashboard")
                     Toggle("Show Disk Monitoring", isOn: $settings.showDisk)
+                        .help("Toggle whether disk usage monitoring is displayed in dashboard")
                     Toggle("Show Network Monitoring", isOn: $settings.showNetwork)
-                    Toggle("Show Battery Monitoring", isOn: $settings.showBattery)
+                        .help("Toggle whether network activity is displayed in dashboard")
+                    Toggle("Show Battery/Thermal Monitoring", isOn: $settings.showBattery)
+                        .help("Toggle whether battery and temperature monitoring is displayed in dashboard")
                 }
                 .padding(8)
             }
@@ -389,6 +400,7 @@ struct DisplaySettingsContent: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Stepper("History Duration: \(settings.historyDurationMinutes) min",
                             value: $settings.historyDurationMinutes, in: 5...120, step: 5)
+                        .help("How long historical data is retained (shorter = less memory usage)")
                 }
                 .padding(8)
             }
@@ -433,6 +445,7 @@ struct GuardSettingsContent: View {
             GroupBox("Auto-Kill Runaway Processes") {
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle("Enable Auto-Kill", isOn: $settings.autoKillEnabled)
+                        .help("Automatically terminate processes using excessive memory or CPU")
 
                     HStack {
                         Text("Memory Threshold")
@@ -442,6 +455,7 @@ struct GuardSettingsContent: View {
                             .frame(width: 60)
                     }
                     Slider(value: $settings.autoKillMemoryGB, in: 1...20, step: 0.5)
+                        .help("Auto-kill processes using more than this amount of memory")
 
                     HStack {
                         Text("CPU Threshold")
@@ -451,8 +465,10 @@ struct GuardSettingsContent: View {
                             .frame(width: 60)
                     }
                     Slider(value: $settings.autoKillCPUPercent, in: 50...100, step: 5)
+                        .help("Auto-kill processes using more than this percentage of CPU for extended periods")
 
                     Toggle("Show warning before killing", isOn: $settings.autoKillWarningFirst)
+                        .help("Prompt for confirmation before terminating processes automatically")
                 }
                 .padding(8)
             }
