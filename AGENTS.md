@@ -1,5 +1,12 @@
 # Pulse - Agent Instructions
 
+## Repo Memory
+
+| Field | Value |
+|---|---|
+| Tech Stack | Swift + SwiftUI |
+| Gate Commands | `swift build` · `swift test` |
+
 ## Run Commands
 - Install: `swift package resolve`
 - Dev: `swift run Pulse`

@@ -8,7 +8,10 @@ Complex feature testing and validation after the workflow test and troubleshooti
 ## Status
 active
 
-## Blockers
+## Last Gate
+Unknown
+
+## Blocked By
 No blocking issue is named in the latest commit history, but the current effort is still in verification mode rather than a clearly closed feature state.
 
 ## Latest Decisions
