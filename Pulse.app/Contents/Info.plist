@@ -17,14 +17,24 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.1</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSUIElement</key>
     <true/>
+    
+    <!-- Permission Usage Descriptions -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Pulse uses Apple Events to identify running applications and their resource usage for system monitoring.</string>
+    <key>NSAppleScriptUsageDescription</key>
+    <string>Pulse uses AppleScript to count browser tabs and manage applications for optimization features.</string>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Pulse requests Accessibility permission to detect apps with keyboard monitoring capabilities for security scanning.</string>
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>Pulse needs Full Disk Access to scan system directories for security threats and perform cleanup operations.</string>
 </dict>
 </plist>

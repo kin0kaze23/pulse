@@ -7,10 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Pulse",
-            path: "MemoryMonitor/Sources",
-            resources: [
-                .process("../Resources")
-            ]
+            path: "MemoryMonitor/Sources"
         ),
         .testTarget(
             name: "PulseTests",

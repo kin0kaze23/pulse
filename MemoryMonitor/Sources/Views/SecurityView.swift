@@ -3,14 +3,21 @@ import SwiftUI
 /// Security & Privacy View - Real-time threat monitoring
 struct SecurityView: View {
     @StateObject private var scanner = SecurityScanner.shared
+    @ObservedObject var permissionsService = PermissionsService.shared
     @State private var selectedItem: SecurityScanner.PersistenceItem?
     @State private var showDisableConfirmation = false
-    
+
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
+            // Permission warning banner (if critical permissions missing)
+            if permissionsService.hasCriticalPermissionsMissing {
+                permissionWarningBanner
+                    .staggeredEntrance(delay: 0)
+            }
+
             // Header with risk indicator
             riskHeader
-                .staggeredEntrance(delay: 0)
+                .staggeredEntrance(delay: permissionsService.hasCriticalPermissionsMissing ? 0.05 : 0)
             
             // Scanning progress indicator
             if scanner.isScanning {
@@ -30,16 +37,10 @@ struct SecurityView: View {
                     .staggeredEntrance(delay: 0.07)
             }
             
-            // Recent threats
-            if !scanner.recentThreats.isEmpty && !scanner.isScanning {
-                recentThreatsSection
+            // Action Required section (combined threats + warnings)
+            if !scanner.recentThreats.isEmpty || !scanner.securityWarnings.isEmpty && !scanner.isScanning {
+                actionRequiredSection
                     .staggeredEntrance(delay: 0.1)
-            }
-            
-            // Warnings section
-            if !scanner.securityWarnings.isEmpty && !scanner.isScanning {
-                warningsSection
-                    .staggeredEntrance(delay: 0.15)
             }
             
             // Keylogger status
@@ -51,13 +52,7 @@ struct SecurityView: View {
             // Persistence items
             if !scanner.isScanning {
                 persistenceItemsSection
-                    .staggeredEntrance(delay: 0.25)
-            }
-            
-            // Deep Security Scan Section
-            if !scanner.isScanning {
-                deepSecuritySection
-                    .staggeredEntrance(delay: 0.30)
+                    .staggeredEntrance(delay: 0.20)
             }
         }
         .padding(DesignSystem.Spacing.lg)
@@ -287,24 +282,24 @@ struct SecurityView: View {
     }
     
     // MARK: - FDA Hint
-    
+
     private var fdaHint: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             Image(systemName: "key.fill")
                 .foregroundColor(.orange)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Grant Full Disk Access")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Text("Enable deeper security scans by granting Full Disk Access in System Settings → Privacy & Security")
+                Text(degradedStateMessage)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
-            Button("Open") {
-                scanner.openSystemPreferencesSecurity()
+
+            Button("Open Settings") {
+                scanner.requestFullDiskAccess()
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
@@ -319,19 +314,88 @@ struct SecurityView: View {
                 .fill(Color.orange.opacity(0.05))
         )
     }
+
+    // MARK: - Degraded State Messages
+
+    private var degradedStateMessage: String {
+        // Check each permission and show the most relevant message
+        let permissions = PermissionsService.shared.permissions
+        
+        // Find specific missing permissions
+        let fdaPermission = permissions.first { $0.type == .fullDiskAccess }
+        let accessibilityPermission = permissions.first { $0.type == .accessibility }
+        
+        // Prioritize messages based on what's actually missing
+        if let fda = fdaPermission, fda.status == .verificationPending {
+            return "Full Disk Access status unclear — please verify in System Settings"
+        } else if let fda = fdaPermission, fda.isMissing {
+            return "Security scan limited — cannot read system directories without Full Disk Access"
+        } else if let acc = accessibilityPermission, acc.isMissing {
+            return "Keylogger detection unavailable — Accessibility permission missing"
+        } else {
+            return "Enable deeper security scans by granting Full Disk Access in System Settings → Privacy & Security"
+        }
+    }
+
+    // MARK: - Permission Warning Banner
+
+    private var permissionWarningBanner: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.orange)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Permissions Required")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                Text("Some security features need Full Disk Access or Accessibility permission. Grant these for complete protection.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                // Open Settings to Permissions tab
+                NotificationCenter.default.post(name: .openSettingsToPermissions, object: nil)
+            } label: {
+                Text("Review")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.accentColor.gradient)
+            )
+            .foregroundColor(.white)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(Color.orange.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
     
-    // MARK: - Recent Threats
-    
-    private var recentThreatsSection: some View {
+    // MARK: - Action Required Section (Combined threats + warnings)
+
+    private var actionRequiredSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack {
-                Text("🔔 RECENT THREATS")
+                Text("ACTION REQUIRED")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(.red)
+                    .foregroundColor(.orange)
                     .tracking(1)
-                
+
                 Spacer()
-                
+
                 if !scanner.recentThreats.isEmpty {
                     Button("Clear") {
                         scanner.clearRecentThreats()
@@ -340,45 +404,41 @@ struct SecurityView: View {
                     .foregroundColor(.secondary)
                 }
             }
-            
-            ForEach(scanner.recentThreats.prefix(5)) { threat in
-                ThreatEventRow(event: threat)
-            }
-            
-            if scanner.recentThreats.count > 5 {
-                Text("+ \(scanner.recentThreats.count - 5) more events")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(DesignSystem.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(Color.red.opacity(0.05))
-        )
-    }
-    
-    // MARK: - Warnings Section
-    
-    private var warningsSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            Text("⚠️ SECURITY WARNINGS")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundColor(.orange)
-                .tracking(1)
-            
-            ForEach(scanner.securityWarnings.prefix(5)) { warning in
-                WarningRow(warning: warning) {
-                    if let path = warning.itemPath {
-                        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-                    }
+
+            // Recent threats first (higher priority)
+            if !scanner.recentThreats.isEmpty {
+                ForEach(scanner.recentThreats.prefix(5)) { threat in
+                    ThreatEventRow(event: threat)
+                }
+
+                if scanner.recentThreats.count > 5 {
+                    Text("+ \(scanner.recentThreats.count - 5) more threats")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
             }
-            
-            if scanner.securityWarnings.count > 5 {
-                Text("+ \(scanner.securityWarnings.count - 5) more warnings")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+
+            // Divider if both sections have content
+            if !scanner.recentThreats.isEmpty && !scanner.securityWarnings.isEmpty {
+                Divider()
+                    .padding(.vertical, DesignSystem.Spacing.sm)
+            }
+
+            // Security warnings
+            if !scanner.securityWarnings.isEmpty {
+                ForEach(scanner.securityWarnings.prefix(5)) { warning in
+                    WarningRow(warning: warning) {
+                        if let path = warning.itemPath {
+                            NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+                        }
+                    }
+                }
+
+                if scanner.securityWarnings.count > 5 {
+                    Text("+ \(scanner.securityWarnings.count - 5) more warnings")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -388,46 +448,58 @@ struct SecurityView: View {
         )
     }
     
-    // MARK: - Keylogger Status
-    
+    // MARK: - Suspicious Process Scanner (formerly "Keylogger Detection")
+
     private var keyloggerStatus: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
-            Image(systemName: "keyboard.fill")
+            Image(systemName: "magnifyingglass.circle")
                 .font(.title2)
                 .foregroundColor(keyloggerColor)
                 .frame(width: 40)
-            
+
             VStack(alignment: .leading, spacing: 4) {
-                Text("Keyboard Event Monitoring")
+                Text("Suspicious Process Scanner")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                 Text(scanner.keyloggerRisk.rawValue)
                     .font(.system(size: 11, design: .rounded))
                     .foregroundColor(keyloggerColor)
-                
-                // Permission hint
-                if scanner.keyloggerRisk == .none {
-                    Text("Grant Full Disk Access for complete detection")
+
+                // Show degraded state messaging
+                if !scanner.hasAccessibilityPermission {
+                    Text("Accessibility permission missing — keylogger detection unavailable")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                } else if !scanner.hasTCCAccess {
+                    Text("Heuristic scan only. Full Disk Access improves detection.")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             Spacer()
-            
+
+            // Show appropriate action button based on risk level and permissions
             if scanner.keyloggerRisk != .none {
                 Button("Review") {
-                    scanner.openSystemPreferencesSecurity()
+                    scanner.requestAccessibility()
                 }
                 .buttonStyle(.bordered)
                 .font(.caption)
-            } else {
-                Button("Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
-                        NSWorkspace.shared.open(url)
-                    }
+                .help("Review accessibility permissions")
+            } else if !scanner.hasAccessibilityPermission {
+                Button("Grant Permission") {
+                    scanner.requestAccessibility()
                 }
                 .buttonStyle(.bordered)
                 .font(.caption)
+                .help("Grant accessibility permission for Pulse")
+            } else if !scanner.hasTCCAccess {
+                Button("Grant FDA") {
+                    scanner.requestFullDiskAccess()
+                }
+                .buttonStyle(.bordered)
+                .font(.caption)
+                .help("Grant Full Disk Access for deeper scans")
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -437,13 +509,13 @@ struct SecurityView: View {
         )
     }
     
-// MARK: - Persistence Items
-    
+    // MARK: - Persistence Items
+
     private var persistenceItemsSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             Text("Startup & Persistence Items")
                 .font(.system(.headline, design: .rounded))
-            
+
             // Group by type
             persistenceItemsList
         }
@@ -453,7 +525,7 @@ struct SecurityView: View {
                 .fill(.ultraThinMaterial)
         )
     }
-    
+
     private var persistenceItemsList: some View {
         let types = Array(groupedItems.keys.sorted())
         return ForEach(types, id: \.self) { type in
@@ -468,14 +540,14 @@ struct SecurityView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    
+
                     ForEach(items.prefix(10)) { item in
                         PersistenceItemRow(item: item) {
                             selectedItem = item
                             showDisableConfirmation = true
                         }
                     }
-                    
+
                     if items.count > 10 {
                         Text("+ \(items.count - 10) more items")
                             .font(.caption2)
@@ -487,69 +559,6 @@ struct SecurityView: View {
                 .background(Color.primary.opacity(0.02))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-        }
-    }
-    
-    // MARK: - Deep Security Section
-    
-    @State private var showDeepSecurity = false
-    
-    private var deepSecuritySection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack {
-                Image(systemName: "shield.lefthalf.filled")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.red, .orange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                
-                Text("Deep Security Scan")
-                    .font(.system(.headline, design: .rounded))
-                
-                Spacer()
-                
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showDeepSecurity.toggle()
-                    }
-                } label: {
-                    Image(systemName: showDeepSecurity ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            if showDeepSecurity {
-                SecurityEnhancementsView()
-                    .frame(height: 400)
-            } else {
-                HStack(spacing: 16) {
-                    deepScanHint(icon: "puzzlepiece.extension", text: "Browser Extensions")
-                    deepScanHint(icon: "clock", text: "Cron Jobs")
-                    deepScanHint(icon: "checkmark.seal", text: "Code Signing")
-                }
-            }
-        }
-        .padding(DesignSystem.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(.ultraThinMaterial)
-        )
-    }
-    
-    private func deepScanHint(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-            Text(text)
-                .font(.system(size: 11, design: .rounded))
-                .foregroundColor(.secondary)
         }
     }
 
@@ -821,4 +830,10 @@ struct PersistenceItemRow: View {
 #Preview {
     SecurityView()
         .frame(width: 500, height: 600)
+}
+
+// MARK: - Notification Extension
+
+extension Notification.Name {
+    static let openSettingsToPermissions = Notification.Name("openSettingsToPermissions")
 }

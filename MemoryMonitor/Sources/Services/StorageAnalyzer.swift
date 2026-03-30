@@ -508,12 +508,60 @@ class StorageAnalyzer: ObservableObject {
     
     // MARK: - Cleanup Actions
     
-    /// Delete iOS update file
+    /// Validate that a path is safe to delete
+    private func isPathSafeToDelete(_ path: String) -> Bool {
+        let lowerPath = path.lowercased()
+        
+        // Protect critical system paths
+        let protectedPrefixes = [
+            "/system", "/bin", "/sbin", "/usr", "/var", "/etc",
+            "/applications", "/library", "/network", "/cores",
+            "/dev", "/private"
+        ]
+        
+        for protected in protectedPrefixes {
+            if lowerPath.hasPrefix(protected) {
+                return false
+            }
+        }
+        
+        // Protect user home directory root and important folders
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        if path == homeDir || 
+           path.hasPrefix(homeDir + "/Documents") || 
+           path.hasPrefix(homeDir + "/Desktop") {
+            return false
+        }
+        
+        // Protect app bundles
+        if lowerPath.hasSuffix(".app") || lowerPath.hasSuffix(".app/") {
+            return false
+        }
+        
+        return true
+    }
+
+    /// Delete iOS update file with safety checks
     func deleteIOSUpdate(_ item: StorageItem, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
+            // Safety check 1: Validate path
+            guard self.isPathSafeToDelete(item.path) else {
+                print("[StorageAnalyzer] Blocked deletion of protected path: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 2: Verify file exists
+            guard FileManager.default.fileExists(atPath: item.path) else {
+                print("[StorageAnalyzer] File does not exist: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
             do {
                 try FileManager.default.removeItem(atPath: item.path)
-                
+                print("[StorageAnalyzer] Deleted iOS update: \(item.path)")
+
                 DispatchQueue.main.async {
                     self.iosUpdates.removeAll { $0.id == item.id }
                     self.totalIOSUpdatesGB = max(0, self.totalIOSUpdatesGB - item.sizeGB)
@@ -528,13 +576,37 @@ class StorageAnalyzer: ObservableObject {
             }
         }
     }
-    
-    /// Delete node_modules folder
+
+    /// Delete node_modules folder with safety checks
     func deleteNodeModules(_ item: StorageItem, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
+            // Safety check 1: Validate path
+            guard self.isPathSafeToDelete(item.path) else {
+                print("[StorageAnalyzer] Blocked deletion of protected path: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 2: Verify directory exists and is node_modules
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir),
+                  isDir.boolValue else {
+                print("[StorageAnalyzer] Path is not a directory: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 3: Verify it's actually a node_modules folder
+            guard item.path.contains("node_modules") else {
+                print("[StorageAnalyzer] Path does not contain node_modules: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
             do {
                 try FileManager.default.removeItem(atPath: item.path)
-                
+                print("[StorageAnalyzer] Deleted node_modules: \(item.path)")
+
                 DispatchQueue.main.async {
                     self.nodeModulesFolders.removeAll { $0.id == item.id }
                     self.totalNodeModulesGB = max(0, self.totalNodeModulesGB - item.sizeGB)
@@ -549,13 +621,37 @@ class StorageAnalyzer: ObservableObject {
             }
         }
     }
-    
-    /// Delete iOS backup
+
+    /// Delete iOS backup with safety checks
     func deleteIOSBackup(_ item: StorageItem, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
+            // Safety check 1: Validate path
+            guard self.isPathSafeToDelete(item.path) else {
+                print("[StorageAnalyzer] Blocked deletion of protected path: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 2: Verify it's in the MobileSync backup location
+            guard item.path.contains("MobileSync/Backup") else {
+                print("[StorageAnalyzer] Path is not in MobileSync/Backup: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 3: Verify directory exists
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir),
+                  isDir.boolValue else {
+                print("[StorageAnalyzer] Backup directory does not exist: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
             do {
                 try FileManager.default.removeItem(atPath: item.path)
-                
+                print("[StorageAnalyzer] Deleted iOS backup: \(item.path)")
+
                 DispatchQueue.main.async {
                     self.iosBackups.removeAll { $0.id == item.id }
                     self.totalIOSBackupsGB = max(0, self.totalIOSBackupsGB - item.sizeGB)
@@ -570,13 +666,53 @@ class StorageAnalyzer: ObservableObject {
             }
         }
     }
-    
-    /// Delete large file
+
+    /// Delete large file with safety checks
     func deleteLargeFile(_ item: StorageItem, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
+            // Safety check 1: Validate path
+            guard self.isPathSafeToDelete(item.path) else {
+                print("[StorageAnalyzer] Blocked deletion of protected path: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 2: Verify file exists
+            guard FileManager.default.fileExists(atPath: item.path) else {
+                print("[StorageAnalyzer] File does not exist: \(item.path)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            // Safety check 3: Check if file is in use
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/lsof")
+            task.arguments = [item.path]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+            
+            do {
+                try task.run()
+                task.waitUntilExit()
+                
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8), 
+                   !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("[StorageAnalyzer] File is in use, skipping: \(item.path)")
+                    DispatchQueue.main.async { completion(false) }
+                    return
+                }
+            } catch {
+                print("[StorageAnalyzer] lsof check failed for \(item.path): \(error)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
             do {
                 try FileManager.default.removeItem(atPath: item.path)
-                
+                print("[StorageAnalyzer] Deleted large file: \(item.path)")
+
                 DispatchQueue.main.async {
                     self.largeFiles.removeAll { $0.id == item.id }
                     self.totalLargeFilesGB = max(0, self.totalLargeFilesGB - item.sizeGB)

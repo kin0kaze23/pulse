@@ -1058,7 +1058,7 @@ class ComprehensiveOptimizer: ObservableObject {
     private func executeCleanupItem(_ item: CleanupPlan.CleanupItem) -> Double {
         // Special handling for Docker
         if item.path == "docker" {
-            cleanDockerSystem()
+            _ = cleanDockerSystem()  // Discard return value (always 0)
             return 0
         }
 
@@ -1107,30 +1107,254 @@ class ComprehensiveOptimizer: ObservableObject {
 
     // MARK: - Individual Cleanup Methods
 
+    /// Safely clean a path with validation and error handling
+    /// Uses Trash for user data, permanent delete for caches (which regenerate)
     private func cleanPath(_ path: String) -> Double {
         let expandedPath = path.expandingTilde
-        guard FileManager.default.fileExists(atPath: expandedPath) else { return 0 }
 
+        // SAFETY CHECK 1: Validate path exists
+        guard FileManager.default.fileExists(atPath: expandedPath) else {
+            print("[ComprehensiveOptimizer] Path does not exist: \(expandedPath)")
+            return 0
+        }
+
+        // SAFETY CHECK 2: Prevent deletion of critical system paths
+        guard isPathSafeToDelete(expandedPath) else {
+            print("[ComprehensiveOptimizer] Blocked deletion of protected path: \(expandedPath)")
+            return 0
+        }
+
+        // SAFETY CHECK 3: Skip whitelisted paths
+        if isPathWhitelisted(expandedPath) {
+            print("[ComprehensiveOptimizer] Skipping whitelisted path: \(expandedPath)")
+            return 0
+        }
+
+        // Get size before deletion
         let size = DirectorySizeUtility.directorySizeMB(expandedPath)
         guard size > 1 else { return 0 }
 
+        // SAFETY CHECK 4: Validate size is reasonable (prevent accidental mass deletion)
+        guard size < 100_000 else {  // 100GB limit
+            print("[ComprehensiveOptimizer] Path too large to delete safely: \(expandedPath) (\(size)MB)")
+            return 0
+        }
+
         do {
-            try FileManager.default.removeItem(atPath: expandedPath)
-            try FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true)
+            // SAFETY CHECK 5: For destructive operations, verify one more time
+            if !isDeletionSafe(expandedPath) {
+                print("[ComprehensiveOptimizer] Deletion failed safety check: \(expandedPath)")
+                return 0
+            }
+
+            // SAFETY CHECK 6: Use Trash for user data, permanent delete for caches
+            // Caches regenerate automatically, so permanent delete is acceptable
+            // User data (Downloads, Logs, etc.) goes to Trash for recovery
+            let isCachePath = path.contains("Caches") || path.contains("cache") || 
+                              path.contains("DerivedData") || path.contains("node_modules")
+            
+            if isCachePath {
+                // Permanent delete for caches (they regenerate)
+                try FileManager.default.removeItem(atPath: expandedPath)
+                
+                // Recreate empty directory for caches (prevents app crashes)
+                try? FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true)
+                
+                print("[ComprehensiveOptimizer] Permanently deleted cache: \(expandedPath) (\(size)MB)")
+            } else {
+                // Move to Trash for user data (recoverable)
+                let url = URL(fileURLWithPath: expandedPath)
+                var trashURL: NSURL?
+                try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
+                print("[ComprehensiveOptimizer] Moved to Trash: \(expandedPath) (\(size)MB), trash location: \(trashURL?.path ?? "unknown")")
+            }
+
+            print("[ComprehensiveOptimizer] Successfully cleaned: \(expandedPath) (\(size)MB)")
             return size
         } catch {
+            print("[ComprehensiveOptimizer] Failed to clean \(expandedPath): \(error.localizedDescription)")
             return 0
         }
     }
+    
+    /// Check if a path is safe to delete (not a critical system path)
+    private func isPathSafeToDelete(_ path: String) -> Bool {
+        let lowerPath = path.lowercased()
+        
+        // Critical system paths that should NEVER be deleted
+        let protectedPaths = [
+            "/system", "/bin", "/sbin", "/usr", "/var", "/etc",
+            "/applications", "/library", "/network", "/cores",
+            "/dev", "/tmp", "/private"
+        ]
+        
+        // Check if path starts with any protected path
+        for protected in protectedPaths {
+            if lowerPath.hasPrefix(protected + "/") || lowerPath == protected {
+                // Exception: user-writable subdirectories
+                if protected == "/var" && lowerPath.contains("/var/folders") {
+                    continue  // Allow /var/folders cleanup
+                }
+                if protected == "/tmp" && lowerPath.hasPrefix("/var/tmp") {
+                    continue  // Allow /var/tmp cleanup
+                }
+                return false
+            }
+        }
+        
+        // Protect user home directory root
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        if path == homeDir || path.hasPrefix(homeDir + "/Documents") || 
+           path.hasPrefix(homeDir + "/Desktop") || path.hasPrefix(homeDir + "/Downloads") {
+            // Exception: Downloads folder contents can be cleaned selectively
+            if path.hasPrefix(homeDir + "/Downloads") && path != homeDir + "/Downloads" {
+                return true  // Allow cleaning individual files in Downloads
+            }
+            return false  // Protect Documents, Desktop, and Downloads folder itself
+        }
+        
+        // Protect app bundles
+        if lowerPath.hasSuffix(".app") || lowerPath.hasSuffix(".app/") {
+            return false
+        }
+        
+        return true
+    }
+    
+    /// Additional safety check for destructive operations
+    private func isDeletionSafe(_ path: String) -> Bool {
+        // Double-check the path still exists and is what we expect
+        guard FileManager.default.fileExists(atPath: path) else { return false }
+        
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else { return false }
+        
+        // Don't delete files that are currently open/in use
+        // This is a best-effort check
+        if !isDir.boolValue {
+            // For files, check if any process has it open (simplified check)
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/lsof")
+            task.arguments = [path]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+            
+            do {
+                try task.run()
+                task.waitUntilExit()
+                
+                // If lsof returns output, the file is in use
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8), !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("[ComprehensiveOptimizer] File in use, skipping: \(path)")
+                    return false
+                }
+            } catch {
+                // lsof failed - be conservative and skip
+                return false
+            }
+        }
+        
+        return true
+    }
+
+    // MARK: - Docker Cleanup with Preview
+
+    /// Get Docker disk usage preview before cleanup
+    /// Returns: (reclaimableGB, containers, images, volumes, buildCache)
+    func getDockerPreview() -> (reclaimableGB: Double, containers: Int, images: Int, volumes: Int, buildCache: String)? {
+        guard isDockerRunning() else { return nil }
+
+        // Run docker system df to get reclaimable space
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/local/bin/docker")
+        task.arguments = ["system", "df"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return nil }
+
+            // Parse output (format varies, extract reclaimable column)
+            let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+            var reclaimableMB: Double = 0
+            var containers = 0
+            var images = 0
+            var volumes = 0
+
+            for line in lines {
+                let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+                if parts.count >= 4 {
+                    // Try to parse reclaimable column (usually 3rd or 4th)
+                    for part in parts {
+                        if let mb = parseDockerSize(String(part)) {
+                            reclaimableMB += mb
+                        }
+                    }
+                }
+            }
+
+            return (reclaimableMB / 1024, containers, images, volumes, output)
+        } catch {
+            print("[ComprehensiveOptimizer] Docker preview failed: \(error)")
+            return nil
+        }
+    }
+
+    /// Parse Docker size strings like "1.234GB", "567MB", "123KB"
+    private func parseDockerSize(_ size: String) -> Double? {
+        let size = size.trimmingCharacters(in: .whitespaces)
+        if size.isEmpty || size == "0" || size == "0B" { return nil }
+
+        let number = size.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        guard let value = Double(number) else { return nil }
+
+        if size.uppercased().contains("GB") {
+            return value * 1024  // Convert to MB
+        } else if size.uppercased().contains("MB") {
+            return value
+        } else if size.uppercased().contains("KB") {
+            return value / 1024
+        } else if size.uppercased().contains("B") {
+            return value / (1024 * 1024)
+        }
+
+        return nil
+    }
 
     private func cleanDockerSystem() -> Double {
-        guard isDockerRunning() else { return 0 }
+        guard isDockerRunning() else { 
+            print("[ComprehensiveOptimizer] Docker not running, skipping cleanup")
+            return 0 
+        }
+
+        // Preview first
+        if let preview = getDockerPreview() {
+            print("[ComprehensiveOptimizer] Docker cleanup preview: \(preview.reclaimableGB)GB reclaimable")
+        }
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/local/bin/docker")
         task.arguments = ["system", "prune", "-af"]
-        try? task.run()
-        task.waitUntilExit()
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            if task.terminationStatus == 0 {
+                print("[ComprehensiveOptimizer] Docker prune completed successfully")
+            } else {
+                print("[ComprehensiveOptimizer] Docker prune failed with status \(task.terminationStatus)")
+            }
+        } catch {
+            print("[ComprehensiveOptimizer] Docker prune failed: \(error)")
+        }
 
         return 0 // Can't easily measure
     }

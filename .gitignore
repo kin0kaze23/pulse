@@ -6,3 +6,7 @@ DerivedData/
 .DS_Store
 *.swp
 *~
+
+# Doppler
+.doppler.env
+.doppler/

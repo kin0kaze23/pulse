@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Distribution Method -->
+    <!-- Options: developer-id, app-store, ad-hoc, enterprise -->
+    <key>method</key>
+    <string>developer-id</string>
+    
+    <!-- Your Apple Developer Team ID -->
+    <!-- REQUIRED: Replace with your actual Team ID -->
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID_HERE</string>
+    
+    <!-- Upload Bitcode -->
+    <!-- Set to false for Developer ID distribution -->
+    <key>uploadBitcode</key>
+    <false/>
+    
+    <!-- Upload Symbols -->
+    <!-- Set to true to upload debug symbols for crash reporting -->
+    <key>uploadSymbols</key>
+    <true/>
+    
+    <!-- Compile Bitcode -->
+    <key>compileBitcode</key>
+    <false/>
+    
+    <!-- Signing Style -->
+    <!-- Options: Automatic, Manual -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+    
+    <!-- Provisioning Profiles -->
+    <!-- Only needed if using manual signing -->
+    <!-- 
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.nugroho.pulse</key>
+        <string>Your-Provisioning-Profile-Name</string>
+    </dict>
+    -->
+    
+    <!-- iCloud Container Entitlements -->
+    <!-- Add if your app uses iCloud -->
+    <!-- 
+    <key>iCloudContainerEnvironment</key>
+    <string>Production</string>
+    -->
+    
+    <!-- App Thinning -->
+    <!-- Options: <string>thin-for-all-variants</string> or omit for no thinning -->
+    <!-- 
+    <key>thinning</key>
+    <string>thin-for-all-variants</string>
+    -->
+</dict>
+</plist>

@@ -153,21 +153,20 @@ class BrowserExtensionScanner: ObservableObject {
     
     private func scanBrowser(_ browser: BrowserExtension.Browser) -> [BrowserExtension] {
         var found: [BrowserExtension] = []
-        
+
         guard let paths = extensionPaths[browser] else { return found }
-        
-        for (name, pathTemplate, enabledPath) in paths {
+
+        for (_, pathTemplate, _) in paths {
             let expandedPath = (pathTemplate as NSString).expandingTildeInPath
-            
+
             // Handle wildcards
-            let directoryPath: String
             if pathTemplate.contains("*") {
                 // Find matching directories
                 let parentPath = (expandedPath as NSString).deletingLastPathComponent
                 let pattern = (pathTemplate as NSString).lastPathComponent
-                
+
                 guard let enumerator = FileManager.default.enumerator(atPath: parentPath) else { continue }
-                
+
                 for case let subdir as String in enumerator {
                     if subdir.contains(pattern.replacingOccurrences(of: "*", with: "")) {
                         let fullPath = (parentPath as NSString).appendingPathComponent(subdir)
@@ -178,12 +177,12 @@ class BrowserExtensionScanner: ObservableObject {
                 }
                 continue
             }
-            
+
             if let exts = scanExtensionDirectory(expandedPath, browser: browser) {
                 found.append(contentsOf: exts)
             }
         }
-        
+
         return found
     }
     

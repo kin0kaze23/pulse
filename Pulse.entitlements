@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Sandbox - Disabled for system monitoring capabilities -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+    
+    <!-- File Access Entitlements -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <!-- Temporary exceptions for system monitoring -->
+    <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+    <array>
+        <!-- Launch Agents/Daemons for security scanning -->
+        <string>/Library/LaunchAgents</string>
+        <string>/Library/LaunchDaemons</string>
+        <string>/System/Library/LaunchDaemons</string>
+        <string>~/Library/LaunchAgents</string>
+        
+        <!-- Login Items -->
+        <string>~/Library/LoginItems</string>
+        <string>/Library/LoginItems</string>
+        
+        <!-- Periodic tasks -->
+        <string>/etc/crontab</string>
+        <string>/etc/periodic</string>
+        
+        <!-- Browser Extensions -->
+        <string>~/Library/Safari</string>
+        <string>~/Library/Application Support/Google/Chrome</string>
+        <string>~/Library/Application Support/Firefox</string>
+        
+        <!-- Developer cleanup targets -->
+        <string>~/Library/Developer/Xcode</string>
+        <string>~/Library/Caches</string>
+        <string>/Library/Caches</string>
+        
+        <!-- Time Machine -->
+        <string>/Library/Application Support/com.apple.backupd</string>
+        
+        <!-- iOS Updates and Backups -->
+        <string>~/Library/iTunes</string>
+        <string>~/Library/Application Support/MobileSync</string>
+        
+        <!-- Messages Attachments -->
+        <string>~/Library/Messages</string>
+    </array>
+    
+    <!-- Process Management - Required for monitoring and cleanup -->
+    <key>com.apple.security.temporary-exception.process-signaling</key>
+    <true/>
+    
+    <!-- Apple Events - Required for Safari tab counting and app management -->
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <true/>
+    
+    <!-- Network Access - Required for network monitoring -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+</dict>
+</plist>

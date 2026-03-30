@@ -1,0 +1,145 @@
+# Pulse Distribution Workflow
+# Builds, signs, and notarizes Pulse for release
+#
+# Trigger: Manual (workflow_dispatch) or Release tag
+# Required Secrets:
+#   - DEVELOPER_ID_CERTIFICATE (Base64 encoded)
+#   - DEVELOPER_ID_PASSWORD
+#   - APPLE_ID
+#   - APPLE_PASSWORD
+#   - DEVELOPER_TEAM_ID
+
+name: Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.1.0)'
+        required: true
+        default: '1.1.0'
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PROJECT_NAME: Pulse
+  SCHEME_NAME: Pulse
+  BUILD_DIR: .build/distribution
+
+jobs:
+  build-and-sign:
+    name: Build & Sign
+    runs-on: macos-14
+    environment: distribution
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.0'
+
+      - name: Import Developer ID Certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.DEVELOPER_ID_CERTIFICATE }}
+          p12-password: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+
+      - name: Configure Export Options
+        run: |
+          sed -i '' "s/YOUR_TEAM_ID_HERE/${{ secrets.DEVELOPER_TEAM_ID }}/g" scripts/ExportOptions.plist
+          cat scripts/ExportOptions.plist
+
+      - name: Build Archive
+        run: |
+          xcodebuild -project Pulse.xcodeproj \
+            -scheme "$SCHEME_NAME" \
+            -configuration Release \
+            -archivePath "$BUILD_DIR/$PROJECT_NAME.xcarchive" \
+            -derivedDataPath "$BUILD_DIR/DerivedData" \
+            DEVELOPMENT_TEAM="${{ secrets.DEVELOPER_TEAM_ID }}" \
+            archive
+
+      - name: Export from Archive
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$BUILD_DIR/$PROJECT_NAME.xcarchive" \
+            -exportPath "$BUILD_DIR/export" \
+            -exportOptionsPlist scripts/ExportOptions.plist \
+            -allowProvisioningUpdates
+
+      - name: Verify Signature
+        run: |
+          codesign -dv --verbose=4 "$BUILD_DIR/export/$PROJECT_NAME.app"
+
+      - name: Verify Entitlements
+        run: |
+          codesign -d --entitlements - "$BUILD_DIR/export/$PROJECT_NAME.app"
+
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pulse.app
+          path: ${{ env.BUILD_DIR }}/export/${{ env.PROJECT_NAME }}.app
+          retention-days: 7
+
+  notarize:
+    name: Notarize
+    runs-on: macos-14
+    environment: distribution
+    needs: build-and-sign
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download App Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Pulse.app
+          path: ${{ env.BUILD_DIR }}/export
+
+      - name: Create ZIP for Notarization
+        run: |
+          cd "$BUILD_DIR/export"
+          zip -r -X "../${{ env.PROJECT_NAME }}.zip" "${{ env.PROJECT_NAME }}.app"
+
+      - name: Submit for Notarization
+        run: |
+          xcrun notarytool submit "$BUILD_DIR/${{ env.PROJECT_NAME }}.zip" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_PASSWORD }}" \
+            --team-id "${{ secrets.DEVELOPER_TEAM_ID }}" \
+            --wait
+
+      - name: Staple Notarization Ticket
+        run: |
+          xcrun stapler staple "$BUILD_DIR/export/${{ env.PROJECT_NAME }}.app"
+
+      - name: Verify Notarization
+        run: |
+          spctl -a -v "$BUILD_DIR/export/${{ env.PROJECT_NAME }}.app"
+
+      - name: Create Release ZIP
+        run: |
+          cd "$BUILD_DIR/export"
+          ditto -c -k --sequesterRsrc --keepParent "${{ env.PROJECT_NAME }}.app" "${{ env.PROJECT_NAME }}.zip"
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pulse-${{ github.event.inputs.version || github.ref_name }}.zip
+          path: ${{ env.BUILD_DIR }}/export/${{ env.PROJECT_NAME }}.zip
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.BUILD_DIR }}/export/${{ env.PROJECT_NAME }}.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

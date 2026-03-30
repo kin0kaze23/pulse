@@ -156,13 +156,19 @@ class AppSettings: ObservableObject {
     }
 
     @Published var lastCleanupDate: Date? {
-        didSet { 
+        didSet {
             if let date = lastCleanupDate {
                 UserDefaults.standard.set(date, forKey: "lastCleanupDate")
             } else {
                 UserDefaults.standard.removeObject(forKey: "lastCleanupDate")
             }
         }
+    }
+
+    // MARK: - Onboarding State
+    /// Whether user has seen the permission onboarding flow
+    @Published var hasSeenPermissionOnboarding: Bool {
+        didSet { UserDefaults.standard.set(hasSeenPermissionOnboarding, forKey: "hasSeenPermissionOnboarding") }
     }
 
     enum MemoryUnit: String, CaseIterable {
@@ -224,6 +230,9 @@ class AppSettings: ObservableObject {
         self.totalFreedMB = UserDefaults.standard.object(forKey: "totalFreedMB") as? Double ?? 0
         self.totalCleanupCount = UserDefaults.standard.object(forKey: "totalCleanupCount") as? Int ?? 0
         self.lastCleanupDate = UserDefaults.standard.object(forKey: "lastCleanupDate") as? Date
+
+        // Load onboarding state
+        self.hasSeenPermissionOnboarding = UserDefaults.standard.object(forKey: "hasSeenPermissionOnboarding") as? Bool ?? false
 
         // Load and validate alert thresholds
         if let data = UserDefaults.standard.data(forKey: "alertThresholds"),

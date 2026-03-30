@@ -34,14 +34,14 @@ struct CleanupConfirmationView: View {
     }
     
     // MARK: - Header
-    
+
     private var header: some View {
         VStack(spacing: 8) {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(.yellow)
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Cleanup Required")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -49,17 +49,38 @@ struct CleanupConfirmationView: View {
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
             }
             .padding(16)
-            
+
             // Summary pill
             if let plan = optimizer.pendingCleanupPlan {
                 HStack(spacing: 12) {
                     SummaryPill(icon: "doc.on.doc", value: "\(plan.itemCount) items", color: .blue)
                     SummaryPill(icon: "arrow.down.circle", value: plan.totalSizeText, color: .green)
                 }
+            }
+
+            // Permanent deletion warning
+            if let plan = optimizer.pendingCleanupPlan, plan.items.contains(where: { $0.isDestructive }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("This action is permanent")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.red)
+                        Text("Some files will be permanently deleted and cannot be recovered. User data goes to Trash.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(12)
+                .background(Color.red.opacity(0.08))
+                .cornerRadius(8)
             }
         }
         .padding(.top, 4)

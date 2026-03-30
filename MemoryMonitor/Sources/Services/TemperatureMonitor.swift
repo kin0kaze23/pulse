@@ -356,8 +356,17 @@ import SwiftUI
 
 // MARK: - Temperature Monitor Service
 
-/// Real-time temperature monitoring using SMC
-/// Works on both Intel and Apple Silicon Macs
+/// Real-time temperature monitoring using SMC (Intel) and Power Management (Apple Silicon)
+/// 
+/// Limitations:
+/// - Intel Macs: Uses SMC via IOKit - generally reliable
+/// - Apple Silicon (M1/M2/M3): SMC keys may not exist or return invalid data
+/// - Some sensors may return 0°C on certain Mac models
+/// 
+/// For accurate temperature readings on Apple Silicon, consider using:
+/// - iStat Menus
+/// - Stats app (github.com/exelban/stats)
+/// - PowerMetrics (command line: sudo powermetrics)
 class TemperatureMonitor: ObservableObject {
     static let shared = TemperatureMonitor()
     

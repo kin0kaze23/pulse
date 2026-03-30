@@ -73,6 +73,8 @@ struct PulseApp: App {
 // MARK: - App Delegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var hasShownInitialWindow = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu bar app — use accessory policy (no Dock icon, stays running)
         NSApp.setActivationPolicy(.accessory)
@@ -85,9 +87,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Set up auto-refresh for permissions when app becomes active
+        setupPermissionAutoRefresh()
+
         // Open window on main screen after brief delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.showMainWindow()
+            self.hasShownInitialWindow = true
         }
     }
 
@@ -98,6 +104,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         // Don't call showMainWindow here — causes double-show on every focus
         // Window is already shown in applicationDidFinishLaunching
+
+        // Refresh permissions if user returned from System Settings
+        // Only after initial window has been shown
+        // NOTE: NSWorkspace.didActivateApplicationNotification handles this,
+        // so we don't need to duplicate the check here
+        if hasShownInitialWindow {
+            // Optional: Could add a small delay to ensure view is ready
+            // but NSWorkspace notification is the primary trigger
+        }
+    }
+
+    // MARK: - Permission Auto-Refresh
+
+    private func setupPermissionAutoRefresh() {
+        // Listen for app activation (user returning to app from System Settings)
+        // This is the SINGLE source of truth for permission refresh
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidActivate),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleAppDidActivate() {
+        // User switched back to Pulse — refresh permissions silently
+        // Only after initial window has been shown
+        if hasShownInitialWindow {
+            refreshPermissionsIfChanged()
+        }
+    }
+
+    private func refreshPermissionsIfChanged() {
+        // Check permissions silently and notify if changed
+        // Debounce: don't check if already checking
+        guard !PermissionsService.shared.isChecking else { return }
+        PermissionsService.shared.checkAllPermissionsSilently()
     }
 
     private func showMainWindow() {

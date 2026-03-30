@@ -71,7 +71,7 @@ struct TemperatureGaugeView: View {
             }
             startGlowAnimation()
         }
-        .onChange(of: temperature) { newValue in
+        .onChange(of: temperature) { oldValue, newValue in
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 animatedValue = newValue
             }
@@ -256,7 +256,7 @@ struct TemperatureRingView: View {
                 animatedValue = temperature
             }
         }
-        .onChange(of: temperature) { newValue in
+        .onChange(of: temperature) { oldValue, newValue in
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 animatedValue = newValue
             }

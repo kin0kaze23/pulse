@@ -3,16 +3,22 @@ import AppKit
 import UserNotifications
 import Darwin
 
-/// Security & Privacy Scanner with Real-Time Monitoring
-/// Inspired by Objective-See tools (KnockKnock, Reikey, BlockBlock)
-///
+/// Security & Privacy Scanner with File-Based Persistence Detection
+/// Note: This is NOT real-time threat monitoring - it's a file watcher for persistence mechanisms
+/// 
 /// Features:
 /// - Launch Agents/Daemons scanner (like KnockKnock)
-/// - Keyboard event tap detection (like Reikey)
-/// - Login items scanner
-/// - Network extension checker
-/// - REAL-TIME monitoring for new threats
-/// - Background threat detection
+/// - Suspicious process name detection (heuristic, NOT definitive keylogger detection)
+/// - Login items scanner (incomplete on macOS Sonoma+)
+/// - Browser extension scanner
+/// - Cron job scanner
+/// - File watchers for persistence locations (detects changes, doesn't prevent them)
+/// 
+/// Limitations:
+/// - Cannot detect kernel-level threats (requires Endpoint Security framework)
+/// - Cannot definitively detect keyloggers (heuristic only)
+/// - Cannot block malicious actions (only alerts after the fact)
+/// - Login items scan incomplete on macOS Sonoma+
 class SecurityScanner: ObservableObject {
     static let shared = SecurityScanner()
     
@@ -683,15 +689,14 @@ class SecurityScanner: ObservableObject {
     }
     
     // MARK: - Keylogger Detection
-    
+
+    /// Check for potential keylogger activity
+    /// Note: This is a heuristic check - macOS doesn't expose which apps have accessibility access
+    /// without Full Disk Access. We check for suspicious process names and behaviors.
     private func checkForKeyloggers() -> KeyloggerRisk {
-        // Check if THIS app has Accessibility permission (AXIsProcessTrusted)
-        // Then check running apps for suspicious accessibility usage
-
         var suspiciousApps = 0
-        var totalAppsWithAccessibility = 0
 
-        // Use NSWorkspace to get running apps, check their accessibility trust status
+        // Use NSWorkspace to get running apps
         let runningApps = NSWorkspace.shared.runningApplications
 
         for app in runningApps {
@@ -700,7 +705,7 @@ class SecurityScanner: ObservableObject {
             // Skip Apple apps
             if bundleID.hasPrefix("com.apple.") { continue }
 
-            // Skip known safe apps - use contains() predicate correctly
+            // Skip known safe apps
             let isSafe = knownSafeBundleIDs.contains { bundleID.hasPrefix($0) }
             if isSafe { continue }
 
@@ -715,73 +720,69 @@ class SecurityScanner: ObservableObject {
             if hasSuspiciousKeyword {
                 suspiciousApps += 1
             }
-
-            // Count non-Apple, non-safe apps as candidates
-            totalAppsWithAccessibility += 1
         }
 
-        // Additionally: check if Full Disk Access is available to do deeper scan
-        let tccPath = "/Library/Application Support/com.apple.TCC/TCC.db"
-        if FileManager.default.isReadableFile(atPath: tccPath) {
-            DispatchQueue.main.async {
-                self.hasTCCAccess = true
-            }
-            return checkKeyloggersViaTCC(tccPath: tccPath, suspiciousSoFar: suspiciousApps)
-        }
-        
+        // Check if Full Disk Access is available (for informational purposes only)
+        // We no longer attempt to read TCC.db directly as it violates macOS security
+        let hasFDA = checkFullDiskAccess()
         DispatchQueue.main.async {
-            self.hasTCCAccess = false
+            self.hasTCCAccess = hasFDA
         }
 
-        // Fallback: keyword-based only
-        if suspiciousApps > 0 { return .high }
+        // Risk assessment based on suspicious apps found
+        // Note: Without FDA, we cannot definitively detect keyloggers
+        if suspiciousApps > 0 {
+            return .high  // Suspicious named app found
+        }
+
+        // If no suspicious apps but FDA is missing, warn user about limited detection
+        if !hasFDA {
+            return .low  // Limited visibility - user should grant FDA for better protection
+        }
+
         return .none
     }
 
-    private func checkKeyloggersViaTCC(tccPath: String, suspiciousSoFar: Int) -> KeyloggerRisk {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        task.arguments = [tccPath,
-            "SELECT client FROM access WHERE service='kTCCServiceAccessibility' AND allowed=1;"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
+    /// Check if Pulse has Full Disk Access permission
+    /// Returns true if we can read protected directories
+    private func checkFullDiskAccess() -> Bool {
+        // Try to read a protected file to check FDA status
+        let testPath = "/Library/Application Support/com.apple.TCC"
+        return FileManager.default.isReadableFile(atPath: testPath)
+    }
 
-        do {
-            try task.run()
-            let deadline = Date().addingTimeInterval(3)
-            while task.isRunning && Date() < deadline {
-                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+    /// Open System Settings to grant Full Disk Access
+    func requestFullDiskAccess() {
+        // Open System Settings → Privacy & Security → Full Disk Access
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        } else {
+            // Fallback for macOS Sonoma and later
+            if let url = URL(string: "x-apple.systempreferences:com.apple.PrivacySettings") {
+                NSWorkspace.shared.open(url)
             }
-            if task.isRunning { task.terminate(); return suspiciousSoFar > 0 ? .high : .none }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return .none }
-
-            let apps = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-            var suspicious = suspiciousSoFar
-            var total = 0
-
-            for app in apps {
-                let lower = app.lowercased()
-                if lower.hasPrefix("com.apple.") { continue }
-                // FIX: use contains() predicate instead of broken nested continue
-                let isSafe = knownSafeBundleIDs.contains { lower.contains($0.lowercased()) }
-                if isSafe { continue }
-                total += 1
-                let hasSuspiciousKeyword = suspiciousKeywords.contains { lower.contains($0) }
-                if hasSuspiciousKeyword { suspicious += 1 }
-            }
-
-            if suspicious > 0 { return .high }
-            if total > 10 { return .medium }
-            if total > 0 { return .low }
-            return .none
-        } catch {
-            return suspiciousSoFar > 0 ? .high : .none
         }
     }
-    
+
+    /// Open System Settings to grant Accessibility permission
+    func requestAccessibilityPermission() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Check if Pulse itself has Accessibility permission
+    var hasAccessibilityPermission: Bool {
+        AXIsProcessTrusted()
+    }
+
+    /// Request Accessibility permission
+    func requestAccessibility() {
+        // This triggers the system prompt if not already granted
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+    }
+
     // MARK: - Analysis
     
     private func checkSuspicious(label: String, program: String?) -> (Bool, String?) {

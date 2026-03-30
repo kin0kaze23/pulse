@@ -188,9 +188,58 @@ class AutoKillManager: ObservableObject {
     }
 
     private func loadWhitelist() {
+        // Default whitelist - critical system processes that should NEVER be killed
+        // Users can add more, but these are protected by default
         whitelistedProcesses = UserDefaults.standard.stringArray(forKey: "autoKillWhitelist") ?? [
+            // Core macOS processes
             "Finder", "WindowServer", "kernel_task", "launchd", "loginwindow",
-            "Dock", "SystemUIServer", "Spotlight", "mds", "corespotlightd"
+            "Dock", "SystemUIServer", "Spotlight", "mds", "corespotlightd",
+            
+            // System services
+            "distnoted", "cfprefsd", "usernoted", "syslogd", "opendirectoryd",
+            "configd", "powerd", "thermald", "bluetoothd", "airportd",
+            "networkd", "mDNSResponder", "discoveryd", "locationd",
+            
+            // Input and accessibility
+            "coreauthd", "securityd", "trustd", "seserviced", "tccd",
+            "accessibilityd", "hidd", "MouseKeys", "SlowKeys", "StickyKeys",
+            
+            // Audio and media
+            "coreaudiod", "audioanalysisd", "mediaserverd", "VTDecoderXPCService",
+            
+            // Power and battery
+            "PMHeart", "powerd", "batteryd", "thermald",
+            
+            // File system
+            "diskarbitrationd", "fseventsd", "storagekitd", "diskimages-helper",
+            "fsck", "mount", "umount",
+            
+            // iCloud and sync
+            "bird", "cloudd", "accountsd", "syncdefaultsd",
+            
+            // Time Machine
+            "backupd", "MobileTimeMachine",
+            
+            // Search and indexing
+            "mds", "mds_stores", "mdworker", "mdworker_ls", "mdworker_shared",
+            
+            // Notification and alerts
+            "usernoted", "alertuserd", "NotificationCenter",
+            
+            // Printing
+            "cupsd", "cups-notifier", "printtool",
+            
+            // Remote and sharing
+            "ssh", "sshd", "screensharingd", "ARDAgent", "remoteinstall",
+            
+            // Virtualization and containers
+            "qemu", "docker", "containerd", "hyperkit", "com.docker",
+            
+            // Development tools (protect from accidental kill)
+            "Xcode", "codesign", "productbuild", "pkgbuild",
+            
+            // Third-party security tools (should not be killed)
+            "Little Snitch", "LuLu", "KnockKnock", "BlockBlock", "Objective-See"
         ]
     }
 

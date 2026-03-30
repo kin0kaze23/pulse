@@ -12,6 +12,7 @@ struct SettingsView: View {
         case alerts = "Alerts"
         case display = "Display"
         case guard_ = "Guard"
+        case permissions = "Permissions"
     }
 
     var body: some View {
@@ -51,6 +52,18 @@ struct SettingsView: View {
             }
         }
         .frame(width: 520, height: 460)
+        .onAppear {
+            // Listen for notification to open permissions tab
+            NotificationCenter.default.addObserver(
+                forName: .openSettingsToPermissions,
+                object: nil,
+                queue: .main
+            ) { _ in
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    selectedTab = .permissions
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -62,6 +75,7 @@ struct SettingsView: View {
         case .alerts: AlertSettingsContent()
         case .display: DisplaySettingsContent()
         case .guard_: GuardSettingsContent()
+        case .permissions: PermissionsDiagnosticsView()
         }
     }
 
@@ -73,6 +87,7 @@ struct SettingsView: View {
         case .alerts: return "bell"
         case .display: return "paintbrush"
         case .guard_: return "shield"
+        case .permissions: return "lock.shield"
         }
     }
 }

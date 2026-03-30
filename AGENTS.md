@@ -34,6 +34,6 @@
 
 ## Definition of Done
 - Quality gates pass (lint -> typecheck -> test -> build)
-- No new TypeScript errors
+- No new Swift compiler or test failures
 - PR created with description
 - The app still builds, tests pass, and menu bar monitoring behavior remains intact

@@ -7,6 +7,7 @@ struct HealthView: View {
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
     @ObservedObject var suggestions = SmartSuggestions.shared
     @ObservedObject var tempMonitor = TemperatureMonitor.shared
+    @ObservedObject var healthScoreService = HealthScoreService.shared
     @State private var showKillConfirmation = false
     @State private var processToKill: ProcessMemoryInfo?
     @State private var showSuccess = false
@@ -39,6 +40,12 @@ struct HealthView: View {
                     .transition(.scale.combined(with: .opacity))
             }
 
+            // Penalty Breakdown (if any penalties)
+            if let breakdown = healthScoreService.currentResult?.breakdown, !breakdown.isEmpty {
+                penaltyBreakdown(breakdown: breakdown)
+                    .staggeredEntrance(delay: 0.15)
+            }
+
             // Quick Processes
             topProcesses
                 .staggeredEntrance(delay: 0.2)
@@ -54,6 +61,7 @@ struct HealthView: View {
             devMonitor.start()
             suggestions.analyze()
             tempMonitor.startMonitoring()
+            healthScoreService.calculateScore()
             withAnimation(DesignSystem.Animation.entrance.delay(0.2)) { animateScore = true }
         }
         .onDisappear { 
@@ -94,6 +102,13 @@ struct HealthView: View {
 
     private var heroCard: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
+            // Health Score with Trends
+            healthScoreSection
+                .frame(maxWidth: .infinity)
+            
+            Divider()
+                .background(Color.primary.opacity(0.1))
+
             // Vitality Orb - the breathing centerpiece (includes grade inside)
             VitalityOrb(
                 healthScore: manager.healthScore,
@@ -136,6 +151,201 @@ struct HealthView: View {
                 )
                 .shadow(color: scoreColor.opacity(0.08), radius: 20, y: 8)
         )
+    }
+
+    // MARK: - Health Score Section with Trends
+
+    private var healthScoreSection: some View {
+        VStack(spacing: DesignSystem.Spacing.sm) {
+            // Loading state
+            if healthScoreService.isCalculating {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Calculating health score...")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            }
+            // Insufficient history state
+            else if healthScoreService.currentResult?.score24hAgo == nil {
+                VStack(spacing: 4) {
+                    HStack(spacing: 12) {
+                        // Current score
+                        VStack(spacing: 2) {
+                            Text("\(healthScoreService.currentResult?.currentScore ?? 0)")
+                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .foregroundColor(scoreColor)
+                            Text("Current")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Grade
+                        VStack(spacing: 2) {
+                            Text(healthScoreService.currentResult?.currentGrade.rawValue ?? "—")
+                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .foregroundColor(gradeColor)
+                            Text("Grade")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Text("Collecting data for trends...")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            }
+            // Full data available
+            else {
+                HStack(spacing: 16) {
+                    // Current score
+                    VStack(spacing: 2) {
+                        Text("\(healthScoreService.currentResult?.currentScore ?? 0)")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(scoreColor)
+                        Text("Current")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    // 24h trend
+                    trendColumn(delta: healthScoreService.currentResult?.delta24h, trend: healthScoreService.currentResult?.trend24h, label: "24h")
+
+                    Spacer()
+
+                    // 7d trend
+                    trendColumn(delta: healthScoreService.currentResult?.delta7d, trend: healthScoreService.currentResult?.trend7d, label: "7d")
+
+                    Spacer()
+
+                    // Grade
+                    VStack(spacing: 2) {
+                        Text(healthScoreService.currentResult?.currentGrade.rawValue ?? "—")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(gradeColor)
+                        Text("Grade")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, DesignSystem.Spacing.md)
+    }
+
+    private func trendColumn(delta: Int?, trend: HealthTrend?, label: String) -> some View {
+        VStack(spacing: 4) {
+            if let delta = delta, let trend = trend {
+                Image(systemName: trend.icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(trend.color))
+                Text("\(delta > 0 ? "+" : "")\(delta)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(trend.color))
+            } else {
+                Image(systemName: "questionmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.gray)
+                Text("—")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.gray)
+            }
+            Text(label)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var gradeColor: Color {
+        guard let grade = healthScoreService.currentResult?.currentGrade else { return .gray }
+        return Color(grade.color)
+    }
+
+    // MARK: - Penalty Breakdown
+
+    private func penaltyBreakdown(breakdown: [HealthPenalty]) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.orange)
+                Text("HEALTH FACTORS")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .tracking(1.5)
+                Spacer()
+            }
+
+            ForEach(breakdown.prefix(4)) { penalty in
+                penaltyRow(penalty: penalty)
+            }
+
+            if breakdown.count > 4 {
+                Text("+ \(breakdown.count - 4) more")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .padding(.leading, DesignSystem.Spacing.md + 28)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                        .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+                )
+        )
+    }
+
+    private func penaltyRow(penalty: HealthPenalty) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            // Severity indicator
+            Circle()
+                .fill(Color(penalty.severity.color))
+                .frame(width: 8, height: 8)
+
+            // Icon
+            Image(systemName: penaltyIcon(for: penalty.category))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+
+            // Content
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(penalty.category) • \(penalty.currentValue)")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(.primary)
+                Text(penalty.recommendation)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            // Points lost
+            Text("−\(penalty.pointsLost)")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundColor(.orange)
+        }
+        .padding(.vertical, DesignSystem.Spacing.xs)
+    }
+
+    private func penaltyIcon(for category: HealthPenalty.HealthCategory) -> String {
+        switch category {
+        case .memory: return "memorychip"
+        case .swap: return "arrow.triangle.2.circlepath"
+        case .cpu: return "cpu"
+        case .thermal: return "thermometer.sun"
+        case .disk: return "internaldrive"
+        }
     }
 
     // MARK: - Status Stack

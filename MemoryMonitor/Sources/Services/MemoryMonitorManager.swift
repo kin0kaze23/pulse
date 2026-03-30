@@ -90,6 +90,9 @@ class MemoryMonitorManager: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
 
+        // Start historical metrics recording for trend analysis
+        HistoricalMetricsService.shared.startRecording()
+
         // Memory monitoring (default 3s, was 2s)
         let memInterval = max(settings.refreshInterval, 3.0)
         systemMonitor.startMonitoring(interval: memInterval)
@@ -126,11 +129,37 @@ class MemoryMonitorManager: ObservableObject {
             self?.diskMonitor.refresh()
         }
 
-        // Alert checks on memory updates
+        // Alert checks and health score recalculation on metric changes
+        // Memory changes
         systemMonitor.$currentMemory
             .compactMap { $0 }
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
             .sink { [weak self] memory in
                 self?.alertManager.checkThresholds(memoryPercentage: memory.usedPercentage)
+                self?.healthScoreService.calculateScore()
+            }
+            .store(in: &cancellables)
+
+        // CPU changes
+        cpuMonitor.$userCPUPercentage
+            .debounce(for: .seconds(2), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.healthScoreService.calculateScore()
+            }
+            .store(in: &cancellables)
+
+        // Thermal changes
+        healthMonitor.$thermalState
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.healthScoreService.calculateScore()
+            }
+            .store(in: &cancellables)
+
+        // Disk changes
+        diskMonitor.$primaryDisk
+            .sink { [weak self] _ in
+                self?.healthScoreService.calculateScore()
             }
             .store(in: &cancellables)
 
@@ -138,6 +167,9 @@ class MemoryMonitorManager: ObservableObject {
         autoKillManager.autoKillMemoryThresholdGB = settings.autoKillMemoryGB
         autoKillManager.autoKillCPUThresholdPercent = settings.autoKillCPUPercent
         autoKillManager.warningBeforeKill = settings.autoKillWarningFirst
+
+        // Initial health score calculation
+        healthScoreService.calculateScore()
     }
 
     func stop() {
@@ -166,14 +198,41 @@ class MemoryMonitorManager: ObservableObject {
     }
 
     // MARK: - Health Score with Breakdown
+    // Note: Now uses HealthScoreService for trend-based calculation
 
-    struct HealthPenalty {
-        let category: String
-        let pointsLost: Int
-        let reason: String
+    /// Legacy health score - kept for backward compatibility
+    /// Use healthScoreService.currentResult for trend-based score
+    var healthScore: Int {
+        healthScoreService.currentResult?.currentScore ?? calculateLegacyScore()
+    }
+    
+    /// Legacy health grade - kept for backward compatibility
+    var healthGrade: String {
+        healthScoreService.currentResult?.currentGrade.rawValue ?? gradeForLegacyScore(healthScore)
+    }
+    
+    /// New health score service with trends
+    let healthScoreService = HealthScoreService.shared
+    
+    /// Calculate legacy score (snapshot only, no trends)
+    private func calculateLegacyScore() -> Int {
+        let totalPenalty = healthBreakdown.reduce(0) { $0 + $1.pointsLost }
+        return max(0, 100 - totalPenalty)
+    }
+    
+    /// Get grade for legacy score
+    private func gradeForLegacyScore(_ score: Int) -> String {
+        switch score {
+        case 90...100: return "A"
+        case 80..<90: return "B"
+        case 70..<80: return "C"
+        case 50..<70: return "D"
+        default: return "F"
+        }
     }
 
-    var healthBreakdown: [HealthPenalty] {
+    /// Legacy health breakdown - kept for backward compatibility
+    var healthBreakdown: [MemoryMonitorManager.HealthPenalty] {
         var penalties: [HealthPenalty] = []
 
         // Memory penalty
@@ -221,20 +280,11 @@ class MemoryMonitorManager: ObservableObject {
 
         return penalties
     }
-
-    var healthScore: Int {
-        let totalPenalty = healthBreakdown.reduce(0) { $0 + $1.pointsLost }
-        return max(0, 100 - totalPenalty)
-    }
-
-    var healthGrade: String {
-        switch healthScore {
-        case 90...100: return "A"
-        case 80..<90: return "B"
-        case 70..<80: return "C"
-        case 50..<70: return "D"
-        default: return "F"
-        }
+    
+    struct HealthPenalty {
+        let category: String
+        let pointsLost: Int
+        let reason: String
     }
 
     // MARK: - Formatted Menu Bar Text

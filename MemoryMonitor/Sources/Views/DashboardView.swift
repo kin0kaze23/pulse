@@ -5,8 +5,10 @@ import SwiftUI
 struct DashboardView: View {
     @ObservedObject var manager = MemoryMonitorManager.shared
     @ObservedObject var systemMonitor = SystemMemoryMonitor.shared
+    @ObservedObject var settings = AppSettings.shared
     @State private var selectedTab: Tab = .health
     @State private var isViewVisible = false
+    @State private var showOnboarding = false
     @Environment(\.openWindow) private var openWindow
 
     enum Tab: String, CaseIterable {
@@ -36,35 +38,112 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-                .staggeredEntrance(delay: 0)
-            Divider()
-            HStack(spacing: 0) {
-                sidebar
-                    .staggeredEntrance(delay: 0.05)
+        ZStack {
+            VStack(spacing: 0) {
+                topBar
+                    .staggeredEntrance(delay: 0)
                 Divider()
-                ScrollView {
-                    contentSection
-                        .padding(DesignSystem.Spacing.lg)
+                HStack(spacing: 0) {
+                    sidebar
+                        .staggeredEntrance(delay: 0.05)
+                    Divider()
+                    ScrollView {
+                        contentSection
+                            .padding(DesignSystem.Spacing.lg)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+            }
+            .frame(minWidth: 800, idealWidth: 900, minHeight: 600, idealHeight: 650)
+            .background(Color(nsColor: .windowBackgroundColor))
+
+            // Onboarding overlay
+            if showOnboarding {
+                OnboardingPermissionView {
+                    withAnimation(DesignSystem.Animation.standard) {
+                        showOnboarding = false
+                    }
+                }
+                .transition(.opacity)
+            }
+
+            // Permission change toast (global, visible in all tabs)
+            VStack {
+                Spacer()
+                if permissionsToastVisible {
+                    permissionChangeToast
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 20)
+                        .padding(.horizontal, 20)
+                }
             }
         }
-        .frame(minWidth: 800, idealWidth: 900, minHeight: 600, idealHeight: 650)
-        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             withAnimation(DesignSystem.Animation.entrance) {
                 isViewVisible = true
             }
+
+            // Show onboarding on first launch ONLY
+            // Use DispatchQueue to ensure settings are fully loaded
+            if !settings.hasSeenPermissionOnboarding && !showOnboarding {
+                showOnboarding = true
+            }
         }
+        .onChange(of: PermissionsService.shared.permissionsChanged) { _, changed in
+            if changed {
+                permissionsToastVisible = true
+                // Auto-dismiss after 4 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                    withAnimation {
+                        permissionsToastVisible = false
+                    }
+                }
+            }
+        }
+    }
+
+    @State private var permissionsToastVisible = false
+
+    private var permissionChangeToast: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            // Icon based on whether permission was granted or revoked
+            Image(systemName: PermissionsService.shared.recentChange?.wasGranted == true ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(PermissionsService.shared.recentChange?.wasGranted == true ? .green : .orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                // Specific message about what changed
+                if let change = PermissionsService.shared.recentChange {
+                    Text("\(change.type.rawValue) \(change.wasGranted ? "granted" : "revoked")")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    Text(change.wasGranted ? "Feature limitations lifted" : "Some features may now be limited")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Permission status updated")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    Text("Changes detected — some features may now be available")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .cornerRadius(DesignSystem.Radius.medium)
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
     }
 
     // MARK: - Top Bar
 
     private var topBar: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
-            // Brand
+            // Brand with health score and trend
             HStack(spacing: DesignSystem.Spacing.sm) {
                 ZStack {
                     Circle()
@@ -80,9 +159,33 @@ struct DashboardView: View {
                 }
                 .frame(width: 28, height: 28)
 
-                Text(Brand.name)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(Brand.name)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    
+                    // 7-day trend indicator
+                    if let result = manager.healthScoreService.currentResult,
+                       let delta7d = result.delta7d,
+                       result.trend7d != .insufficientData {
+                        let trend7d = result.trend7d
+                        HStack(spacing: 2) {
+                            Image(systemName: trend7d.compactIcon)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(Color(trend7d.color))
+                            Text("\(trend7d.signFor(delta: delta7d))\(delta7d)")
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(trend7d.color))
+                            Text("7d")
+                                .font(.system(size: 8))
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Collecting trend data...")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Spacer()

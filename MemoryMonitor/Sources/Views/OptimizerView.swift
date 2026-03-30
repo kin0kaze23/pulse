@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// Optimizer view — Process management and system cleanup
+/// Note: "Optimizer" is a misnomer - we advise on memory, we don't optimize it
 struct OptimizerView: View {
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
-            sectionHeader(icon: "sparkles", title: "Optimizer", subtitle: "Process management and system cleanup")
-            
+            sectionHeader(icon: "sparkles", title: "Memory Advisor", subtitle: "Process management and cache cleanup")
+
             ProcessListView()
                 .staggeredEntrance(delay: 0.05)
             Divider()
@@ -16,7 +17,7 @@ struct OptimizerView: View {
                 .staggeredEntrance(delay: 0.15)
         }
     }
-    
+
     private func sectionHeader(icon: String, title: String, subtitle: String) -> some View {
         HStack {
             Image(systemName: icon)

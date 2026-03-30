@@ -104,10 +104,13 @@ def create_iconset(icon_img):
     ]
 
     # Prepare iconset directory and files
-    os.makedirs(
-        "/Users/jonathannugroho/Documents/Personal Projects/Pulse/Pulse.app/Contents/Resources/AppIcon.iconset",
-        exist_ok=True,
+    # Use relative path from script location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    iconset_path = os.path.join(
+        script_dir,
+        "Pulse.app/Contents/Resources/AppIcon.iconset"
     )
+    os.makedirs(iconset_path, exist_ok=True)
 
     # Create JSON info file for the iconset
     json_content = """{
@@ -170,7 +173,7 @@ def create_iconset(icon_img):
 }"""
 
     with open(
-        "/Users/jonathannugroho/Documents/Personal Projects/Pulse/Pulse.app/Contents/Resources/AppIcon.iconset/Contents.json",
+        os.path.join(iconset_path, "Contents.json"),
         "w",
     ) as f:
         f.write(json_content)
@@ -198,7 +201,7 @@ def create_iconset(icon_img):
     for size in sizes:
         resized_icon = icon_img.resize((size[0], size[1]), Image.Resampling.LANCZOS)
         filename = master_name_map[size]
-        file_path = f"/Users/jonathannugroho/Documents/Personal Projects/Pulse/Pulse.app/Contents/Resources/AppIcon.iconset/{filename}"
+        file_path = os.path.join(iconset_path, filename)
         resized_icon.save(file_path, "PNG")
 
 

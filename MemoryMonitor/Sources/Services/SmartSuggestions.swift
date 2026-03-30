@@ -2,7 +2,16 @@ import Foundation
 import AppKit
 import Darwin
 
-/// Smart suggestions for memory optimization - provides actionable advice the engine can't do automatically
+/// Rules-Based Suggestions for System Optimization
+/// Note: This is NOT AI-powered - it uses simple threshold-based rules
+/// 
+/// The suggestions are hardcoded if-then logic based on:
+/// - Memory pressure thresholds
+/// - Disk usage thresholds  
+/// - Running process detection
+/// - Browser tab counts (via AppleScript)
+/// 
+/// No machine learning, no CoreML, no adaptive behavior.
 class SmartSuggestions: ObservableObject {
     static let shared = SmartSuggestions()
 
