@@ -159,13 +159,13 @@ private class SMCConnection {
     private func readKeyInfo(_ key: UInt32) throws -> SMCKeyInfo {
         var input = SMCKeyData()
         var output = SMCKeyData()
-        
+
         input.key = key
         input.data8 = SMC_CMD_READ_KEYINFO
-        
-        var inputSize: Int = SMCKeyData.size
+
+        let inputSize: Int = SMCKeyData.size
         var outputSize: Int = SMCKeyData.size
-        
+
         let kr = withUnsafeMutablePointer(to: &input) { inputPtr in
             withUnsafeMutablePointer(to: &output) { outputPtr in
                 IOConnectCallStructMethod(
@@ -181,19 +181,19 @@ private class SMCConnection {
         guard kr == KERN_SUCCESS else {
             throw SMCError.readFailed("Read key info failed: \(kr)")
         }
-        
+
         return output.keyInfo
     }
-    
+
     private func readKeyBytes(_ key: UInt32, _ keyInfo: SMCKeyInfo) throws -> [UInt8] {
         var input = SMCKeyData()
         var output = SMCKeyData()
-        
+
         input.key = key
         input.data8 = SMC_CMD_READ_BYTES
         input.keyInfo = keyInfo
-        
-        var inputSize: Int = SMCKeyData.size
+
+        let inputSize: Int = SMCKeyData.size
         var outputSize: Int = SMCKeyData.size
         
         let kr = withUnsafeMutablePointer(to: &input) { inputPtr in

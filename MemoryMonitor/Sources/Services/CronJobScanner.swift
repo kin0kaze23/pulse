@@ -71,20 +71,20 @@ struct CronJob: Identifiable {
         // Parse common cron schedules
         let parts = schedule.split(separator: " ")
         guard parts.count >= 5 else { return schedule }
-        
+
         let minute = String(parts[0])
         let hour = String(parts[1])
-        let dayOfMonth = String(parts[2])
-        let month = String(parts[3])
+        let _ = String(parts[2])  // dayOfMonth - unused
+        let _ = String(parts[3])  // month - unused
         let dayOfWeek = String(parts[4])
-        
+
         // Common patterns
         if minute == "*" && hour == "*" { return "Every minute" }
         if minute == "0" && hour == "*" { return "Every hour" }
         if minute == "0" && hour != "*" { return "Daily at \(hour):00" }
         if minute == "0" && hour == "0" { return "Daily at midnight" }
         if dayOfWeek != "*" && hour != "*" { return "Weekly on day \(dayOfWeek) at \(hour):\(minute)" }
-        
+
         return schedule
     }
 }

@@ -319,7 +319,7 @@ struct HealthView: View {
 
             // Content
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(penalty.category) • \(penalty.currentValue)")
+                Text("\(String(describing: penalty.category)) • \(String(describing: penalty.currentValue))")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(.primary)
                 Text(penalty.recommendation)

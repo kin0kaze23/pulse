@@ -16,7 +16,7 @@ struct DashboardView: View {
         case memory = "Memory"
         case system = "System"
         case caches = "Caches"
-        case optimizer = "Optimizer"
+        case cleaner = "Cleaner"
         case developer = "Developer"
         case security = "Security"
         case history = "History"
@@ -28,7 +28,7 @@ struct DashboardView: View {
             case .memory: return "memorychip"
             case .system: return "cpu"
             case .caches: return "externaldrive.fill"
-            case .optimizer: return "sparkles"
+            case .cleaner: return "sparkles"
             case .developer: return "terminal.fill"
             case .security: return "shield.checkered"
             case .history: return "chart.xyaxis.line"
@@ -330,7 +330,7 @@ struct DashboardView: View {
         case .caches:
             PackageManagerCachesView()
                 .staggeredEntrance(delay: 0.1)
-        case .optimizer:
+        case .cleaner:
             OptimizerView()
                 .staggeredEntrance(delay: 0.1)
         case .developer:

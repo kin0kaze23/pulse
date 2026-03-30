@@ -1284,9 +1284,9 @@ class ComprehensiveOptimizer: ObservableObject {
             // Parse output (format varies, extract reclaimable column)
             let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
             var reclaimableMB: Double = 0
-            var containers = 0
-            var images = 0
-            var volumes = 0
+            let containers = 0
+            let images = 0
+            let volumes = 0
 
             for line in lines {
                 let parts = line.split(separator: " ", omittingEmptySubsequences: true)
