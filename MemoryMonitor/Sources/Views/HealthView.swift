@@ -379,7 +379,7 @@ struct HealthView: View {
                 label: "BROWSER TABS",
                 value: "\(devMonitor.browserTabCount)",
                 detail: String(format: "%.0f MB", devMonitor.browserTotalMB),
-                color: devMonitor.browserTabCount > 25 ? .orange : .green,
+                color: devMonitor.browserTabCount > 25 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.success,
                 percent: browserPercent,
                 alert: devMonitor.browserTabCount > 30
             )
@@ -504,7 +504,7 @@ struct HealthView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                        .stroke(temperatureAlert ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+                        .stroke(temperatureAlert ? DesignSystem.ColorPalette.Status.criticalStroke(0.2) : Color.clear, lineWidth: 1)
                 )
         )
         .hoverEffect()
@@ -617,7 +617,7 @@ struct HealthView: View {
                     .fill(.ultraThinMaterial)
                     .overlay(
                         Capsule()
-                            .stroke(Color.green.opacity(0.25), lineWidth: 1)
+                            .stroke(DesignSystem.ColorPalette.Status.successStroke(0.25), lineWidth: 1)
                     )
             )
         .onAppear {
@@ -798,7 +798,7 @@ struct HealthView: View {
                 icon: "arrow.triangle.2.circlepath",
                 title: "Restart your Mac",
                 detail: String(format: "%.1f GB of swap is slowing things down", devMonitor.swapUsedGB),
-                color: .red,
+                color: DesignSystem.ColorPalette.Status.critical,
                 actionLabel: nil,
                 action: nil
             )
@@ -809,7 +809,7 @@ struct HealthView: View {
                 icon: "cylinder.fill",
                 title: "OpenCode database is bloated",
                 detail: String(format: "%.0f MB in RAM — clean to free memory", devMonitor.opencodeDBSizeMB),
-                color: .red,
+                color: DesignSystem.ColorPalette.Status.critical,
                 actionLabel: "Clean",
                 action: { devMonitor.cleanOpencodeDB() }
             )
@@ -821,7 +821,7 @@ struct HealthView: View {
                 icon: "bolt.slash.fill",
                 title: "Standalone sessions wasting memory",
                 detail: String(format: "%.0f MB — use serve+attach instead", mb),
-                color: .orange,
+                color: DesignSystem.ColorPalette.Status.warning,
                 actionLabel: "Kill",
                 action: { devMonitor.killStandaloneSessions() }
             )
@@ -832,7 +832,7 @@ struct HealthView: View {
                 icon: "memorychip.fill",
                 title: "Memory is running high",
                 detail: String(format: "%.0f%% used", mem.usedPercentage),
-                color: .orange,
+                color: DesignSystem.ColorPalette.Status.warning,
                 actionLabel: "Free RAM",
                 action: { manager.freeRAM() }
             )
@@ -843,7 +843,7 @@ struct HealthView: View {
                 icon: "macwindow.on.rectangle",
                 title: "Too many browser tabs",
                 detail: "\(devMonitor.browserTabCount) tabs using \(String(format: "%.0f MB", devMonitor.browserTotalMB))",
-                color: .orange,
+                color: DesignSystem.ColorPalette.Status.warning,
                 actionLabel: nil,
                 action: nil
             )
@@ -860,13 +860,7 @@ struct HealthView: View {
     }
 
     private var scoreColor: Color {
-        switch manager.healthScore {
-        case 90...100: return .green
-        case 80..<90: return .blue
-        case 70..<80: return .yellow
-        case 50..<70: return .orange
-        default: return .red
-        }
+        DesignSystem.ColorPalette.Health.forScore(manager.healthScore)
     }
 
     private var memoryUsedGB: Double { systemMonitor.currentMemory?.usedGB ?? 0 }
@@ -879,16 +873,16 @@ struct HealthView: View {
 
     private var memoryColor: Color {
         guard let mem = systemMonitor.currentMemory else { return .gray }
-        return mem.usedPercentage > 85 ? .red : mem.usedPercentage > 75 ? .orange : .green
+        return mem.usedPercentage > 85 ? DesignSystem.ColorPalette.Status.critical : mem.usedPercentage > 75 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.success
     }
 
     private var memoryPercent: Double { systemMonitor.currentMemory?.usedPercentage ?? 0 }
 
     private var swapColor: Color {
-        if devMonitor.swapUsedGB > 15 { return .red }
-        if devMonitor.swapUsedGB > 8 { return .orange }
-        if devMonitor.swapUsedGB > 3 { return .yellow }
-        return .green
+        if devMonitor.swapUsedGB > 15 { return DesignSystem.ColorPalette.Status.critical }
+        if devMonitor.swapUsedGB > 8  { return DesignSystem.ColorPalette.Status.warning }
+        if devMonitor.swapUsedGB > 3  { return DesignSystem.ColorPalette.Health.fair }
+        return DesignSystem.ColorPalette.Status.success
     }
 
     private var swapPercent: Double {

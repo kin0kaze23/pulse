@@ -58,10 +58,10 @@ struct ProcessListView: View {
                                 if process.isSafeToClose {
                                     Text("SAFE")
                                         .font(.system(size: 9, weight: .bold, design: .rounded))
-                                        .foregroundColor(.green)
+                                        .foregroundColor(DesignSystem.ColorPalette.Status.success)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
-                                        .background(Color.green.opacity(0.15))
+                                        .background(DesignSystem.ColorPalette.Status.successBackground(0.15))
                                         .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                             }
@@ -138,10 +138,10 @@ struct MemoryBar: View {
     let percentage: Double
 
     private var barColor: Color {
-        if percentage > 20 { return .red }
-        if percentage > 10 { return .orange }
-        if percentage > 5 { return .yellow }
-        return .blue
+        if percentage > 20 { return DesignSystem.ColorPalette.Status.critical }
+        if percentage > 10 { return DesignSystem.ColorPalette.Status.warning }
+        if percentage > 5  { return DesignSystem.ColorPalette.Health.fair }
+        return DesignSystem.ColorPalette.Status.info
     }
 
     var body: some View {

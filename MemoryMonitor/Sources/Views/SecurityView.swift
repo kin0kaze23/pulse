@@ -231,12 +231,12 @@ struct SecurityView: View {
             // Monitoring indicator
             ZStack {
                 Circle()
-                    .fill(scanner.isMonitoring ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
+                    .fill(scanner.isMonitoring ? DesignSystem.ColorPalette.Status.successBackground(0.2) : DesignSystem.ColorPalette.Background.trackFine)
                     .frame(width: 40, height: 40)
                 
                 if scanner.isMonitoring {
                     Circle()
-                        .stroke(Color.green, lineWidth: 2)
+                        .stroke(DesignSystem.ColorPalette.Status.success, lineWidth: 2)
                         .frame(width: 40, height: 40)
                     
                     Image(systemName: "shield.checkered")
@@ -280,7 +280,7 @@ struct SecurityView: View {
         .padding(DesignSystem.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(scanner.isMonitoring ? Color.green.opacity(0.08) : Color.gray.opacity(0.08))
+                .fill(scanner.isMonitoring ? DesignSystem.ColorPalette.Status.successBackground(0.08) : DesignSystem.ColorPalette.Background.card)
         )
     }
     
@@ -307,14 +307,14 @@ struct SecurityView: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.orange.opacity(0.1))
+            .background(DesignSystem.ColorPalette.Status.warningBackground(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .foregroundColor(.orange)
         }
         .padding(DesignSystem.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(Color.orange.opacity(0.05))
+                .fill(DesignSystem.ColorPalette.Status.warningBackground(0.05))
         )
     }
 
@@ -379,10 +379,10 @@ struct SecurityView: View {
         .padding(DesignSystem.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(Color.orange.opacity(0.1))
+                .fill(DesignSystem.ColorPalette.Status.warningBackground(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        .stroke(DesignSystem.ColorPalette.Status.warningStroke(0.3), lineWidth: 1)
                 )
         )
     }
@@ -447,7 +447,7 @@ struct SecurityView: View {
         .padding(DesignSystem.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                .fill(Color.orange.opacity(0.08))
+                .fill(DesignSystem.ColorPalette.Status.warningBackground(0.08))
         )
     }
     
@@ -914,7 +914,7 @@ struct PersistenceItemRow: View {
                     .foregroundColor(.yellow)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.yellow.opacity(0.15))
+                    .background(Color.secondary.opacity(0.15))
                     .clipShape(Capsule())
             } else if item.canDisable {
                 Button {
@@ -944,8 +944,8 @@ struct PersistenceItemRow: View {
     }
 
     private var rowBackgroundColor: Color {
-        if item.isSuspicious { return Color.orange.opacity(0.05) }
-        if item.isUnnecessary { return Color.yellow.opacity(0.03) }
+        if item.isSuspicious { return DesignSystem.ColorPalette.Status.warningBackground(0.05) }
+        if item.isUnnecessary { return Color.secondary.opacity(0.03) }
         return Color.clear
     }
 }

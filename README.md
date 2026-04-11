@@ -2,11 +2,12 @@
 
 > Keep your Mac in flow
 
-A native macOS menu bar app for system health monitoring and cache cleanup.
-
+[![CI](https://github.com/jonathannugroho/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathannugroho/pulse/actions/workflows/ci.yml)
 ![macOS](https://img.shields.io/badge/macOS-14.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9+-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+
+A native macOS menu bar app for system health monitoring and cache cleanup.
 
 ---
 
@@ -14,33 +15,100 @@ A native macOS menu bar app for system health monitoring and cache cleanup.
 
 Pulse is a **system monitoring dashboard** with **cache cleanup automation** for macOS developers.
 
-**Core features:**
-- 📊 **System Monitoring** — Memory, CPU, disk, network, battery, thermal metrics
-- 🧹 **Cache Cleanup** — Xcode, Docker, Homebrew, npm, browser caches
-- 📈 **Health Score** — A-F grade based on current system metrics
-- 🔍 **Process Manager** — View and terminate high-resource processes
-- 🔒 **Security Scanner** — Detect persistence items and suspicious startup entries
-- 🛠️ **Developer Tools** — Profile-based cleanup for dev tooling
+---
 
-**What Pulse is NOT:**
-- ❌ Not a memory booster (macOS manages memory automatically)
-- ❌ Not a security suite (no malware scanning)
-- ❌ Not an AI tool (rules-based automation only)
-- ❌ Not a backup tool (deletions are permanent)
+## Features
 
-See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) and [LIMITATIONS.md](LIMITATIONS.md) for detailed accuracy information.
+### System Monitoring
+- **Memory** — Real-time memory pressure, swap usage, and breakdown (mach VM APIs)
+- **CPU** — Per-core utilization, user/system/idle split, top processes
+- **Disk** — Volume usage, pressure gauges, and reclaimable space
+- **Network** — Interface-level send/receive statistics
+- **Battery** — Percentage, cycle count, health, time remaining
+- **Thermal** — Thermal state monitoring and temperature (where available)
+
+### Health Score
+- **A-F Grading** — Composite health score (0-100) based on memory, CPU, disk, and thermal metrics
+- **Trend Tracking** — 24-hour and 7-day trend analysis with delta indicators
+- **Score Breakdown** — Transparent view of what's impacting your score
+- **Actionable Recommendations** — One-click fixes for common issues
+
+### Cache Cleanup
+- **Xcode** — DerivedData, Archives, Device Support, simulators
+- **Docker** — Stopped containers, dangling images, system prune
+- **Node.js** — npm cache, yarn cache, node_modules
+- **Homebrew** — Cache, old versions
+- **Browsers** — Safari, Chrome, Firefox caches
+- **System** — Icon services, font caches, logs
+- **Time Machine** — Local snapshots
+- **Package Managers** — pip, cargo, go module caches
+
+### Process Management
+- **Top Processes** — View and sort by memory or CPU
+- **Kill Processes** — SIGTERM → SIGKILL with confirmation
+- **Auto-Kill Guard** — Configurable thresholds for runaway processes
+- **Protected Whitelist** — 60+ system processes cannot be killed
+- **Safe-to-Close Badges** — Visual indicators for non-critical processes
+
+### Security Scanner
+- **Persistence Detection** — LaunchAgents, LaunchDaemons, login items, crontab
+- **Browser Extensions** — Safari, Chrome, Firefox extension audit
+- **Real-Time Monitoring** — 60-second threat scan cycle
+- **Permission Diagnostics** — FDA, Accessibility, Apple Events status
+- **Suspicious Process Scanner** — Heuristic analysis of running processes
+
+### Developer Tools
+- **Profile-Based Cleanup** — Pre-configured profiles for Xcode, Docker, Node.js, Homebrew, Python, Rust, Go
+- **Custom Commands** — Add your own cleanup shell commands
+- **Smart Suggestions** — Context-aware cleanup recommendations
+
+### User Experience
+- **Menu Bar App** — Lightweight, always-available monitoring
+- **Vitality Orb** — Animated centerpiece showing overall health at a glance
+- **Bento Grid Dashboard** — 9-tab dashboard with health, memory, system, caches, cleaner, developer, security, history, and disk explorer
+- **Dark Mode Support** — Fully adaptive UI with semantic color tokens
+- **Staggered Animations** — Purposeful, comprehension-improving transitions
+- **Haptic Feedback** — Tactile response for key interactions
 
 ---
 
 ## Screenshots
 
-> TODO: Add screenshots of:
-> - Menu bar with memory percentage
-> - Dashboard Health tab
-> - Memory tab with breakdown
-> - Optimizer tab with cleanup preview
-> - Security scanner results
-> - Developer profiles
+### Menu Bar
+The menu bar icon shows current memory percentage, color-coded by pressure level (green/yellow/orange/red). Click to open the popover with the Vitality Orb, quick stats, and one-click cleanup.
+
+### Dashboard — Health Tab
+The hero card displays the health score with a large animated orb, trend indicators (24h/7d), score breakdown, and actionable recommendations. The status stack on the right shows memory, swap, browser tabs, and temperature at a glance.
+
+### Dashboard — Memory Tab
+Circular memory gauge with pressure-level coloring, detailed breakdown (used/free/cached/compressed/wired/swap), and historical memory usage chart.
+
+### Dashboard — System Tab
+CPU gauges (user/system/idle), disk volume cards with reclaimable space, network interface stats, and battery/thermal indicators.
+
+### Dashboard — Cleaner Tab
+Process list with memory bars, kill actions, and cleanup history. The optimizer provides itemized cleanup plans with safe/review categories.
+
+### Dashboard — Security Tab
+Risk gauge, real-time monitoring toggle, persistence item list with enable/disable actions, and permission status indicators.
+
+---
+
+## Safety First
+
+Pulse was built with safety as the primary concern. Phase 1 introduced critical safety fixes that protect your system:
+
+- **Protected System Paths** — `/System`, `/usr`, `/bin`, `/sbin`, `/Applications`, and other critical directories are on a deny-list and cannot be deleted
+- **In-Use File Detection** — Files currently open by any process are automatically skipped during cleanup
+- **App Bundle Protection** — `.app` bundles are never deleted
+- **User Data Protection** — `~/Documents`, `~/Desktop`, `~/Downloads` are protected from accidental cleanup
+- **Size Limits** — Maximum 100GB per cleanup operation to prevent runaway deletions
+- **Preview Before Delete** — Every cleanup shows an itemized list with sizes before confirmation
+- **Process Whitelist** — 60+ critical system processes cannot be terminated, even by the auto-kill guard
+- **Graceful Kill Sequence** — SIGTERM first, SIGKILL only after timeout — no brutal force by default
+- **Confirmation Dialogs** — Large cleanups require explicit extra confirmation
+
+See [SECURITY.md](SECURITY.md) for the full security policy and threat model.
 
 ---
 
@@ -49,28 +117,26 @@ See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) and [LIMITATIONS.md](LIMITATION
 ### Requirements
 
 - macOS 14.0 (Sonoma) or later
+- Swift 5.9+ toolchain
 - 50 MB disk space
-- Optional: Full Disk Access for security scanning
 
-### Install
-
-**Option 1: Build from source (recommended for testing)**
+### Install from Source
 
 ```bash
 git clone https://github.com/jonathannugroho/pulse.git
 cd pulse
 swift build -c release
 
-# The app will be at .build/release/Pulse
+# The built executable is at .build/release/Pulse
 # Drag to Applications folder or run directly
 open .build/release/Pulse
 ```
 
-**Option 2: Download pre-built release** (coming soon)
+### Run Tests
 
-1. Download `Pulse.app.zip` from Releases
-2. Move to `/Applications`
-3. Right-click → Open (first launch requires manual approval)
+```bash
+swift test
+```
 
 ### First Launch
 
@@ -86,81 +152,6 @@ On first launch, Pulse will:
 
 ---
 
-## Features
-
-### System Monitoring
-
-| Metric | Method | Accuracy |
-|--------|--------|----------|
-| Memory | mach VM APIs | ✅ Accurate |
-| CPU | host_processor_info | ✅ Accurate |
-| Disk | FileManager volumes | ✅ Accurate |
-| Network | getifaddrs | ✅ Accurate |
-| Battery | pmset, ioreg | ✅ Accurate |
-| Thermal | ProcessInfo.thermalState | ✅ Accurate |
-| Temperature | SMC via IOKit | ⚠️ Varies by Mac model |
-
-### Cache Cleanup
-
-Pulse can safely delete:
-
-| Category | Examples | Safe? | Regenerates? |
-|----------|----------|-------|--------------|
-| Xcode | DerivedData, Archives, Device Support | ✅ Yes | ✅ Yes (as needed) |
-| Docker | Stopped containers, dangling images | ✅ Yes | ❌ No |
-| Node.js | npm cache, yarn cache, node_modules | ✅ Yes | ✅ Yes (npm install) |
-| Homebrew | Cache, old versions | ✅ Yes | ❌ No |
-| Browsers | Safari, Chrome, Firefox caches | ✅ Yes | ✅ Yes (browsing) |
-| System | Icon services, font caches, logs | ✅ Yes | ✅ Yes |
-| Time Machine | Local snapshots | ✅ Yes | ❌ No |
-| iOS | Updates, backups | ⚠️ Review first | ❌ No |
-
-**Safety features:**
-- Preview before deletion
-- Protected system paths (cannot delete /System, /usr, etc.)
-- In-use file detection (skips open files)
-- Size limits (100GB max per operation)
-- Whitelist support
-
-**Warning:** Deletions are permanent. Ensure you have backups before using cleanup features.
-
-### Process Management
-
-- View top processes by memory and CPU
-- Kill individual processes (SIGTERM → SIGKILL)
-- Auto-kill runaway processes (configurable thresholds)
-- Protected whitelist (60+ system processes cannot be killed)
-
-### Security Scanner
-
-Scans for persistence mechanisms:
-
-| Location | Scanned | Notes |
-|----------|---------|-------|
-| ~/Library/LaunchAgents | ✅ Yes | User-level startup items |
-| /Library/LaunchAgents | ✅ Yes | System-level startup items |
-| /Library/LaunchDaemons | ✅ Yes | Background services |
-| ~/Library/LoginItems | ⚠️ Partial | Misses Sonoma+ System Settings items |
-| /etc/crontab | ✅ Yes | Scheduled tasks |
-| Browser Extensions | ✅ Yes | Safari, Chrome, Firefox |
-
-**Keylogger detection:** Uses heuristic analysis (suspicious process names). Cannot definitively detect keyloggers without Full Disk Access. See [LIMITATIONS.md](LIMITATIONS.md).
-
-### Developer Profiles
-
-Pre-configured cleanup for:
-
-- **Xcode** — DerivedData, Archives, iOS Device Support, Simulators
-- **Docker** — Containers, images, system prune
-- **Node.js** — npm cache, yarn cache
-- **Homebrew** — Cache, cleanup
-- **Python** — pip cache, __pycache__
-- **Rust** — cargo cache, build artifacts
-- **Go** — module cache
-- **Custom** — Add your own shell commands
-
----
-
 ## Usage
 
 ### Menu Bar
@@ -168,7 +159,7 @@ Pre-configured cleanup for:
 Pulse lives in your menu bar for quick access:
 
 - **Memory %** — Current memory pressure (color-coded)
-- **Click** — Open popover with quick stats
+- **Click** — Open popover with quick stats and Vitality Orb
 - **Right-click** — Full menu with actions
 
 ### Dashboard
@@ -181,86 +172,29 @@ The main window has 9 tabs:
 | Memory | Detailed memory stats and history |
 | System | CPU, Disk, Network, Battery |
 | Caches | Package manager cache sizes |
-| Optimizer | Process list, cleanup, history |
+| Cleaner | Process list, cleanup, history |
 | Developer | Dev tool profiles and actions |
 | Security | Persistence scanner |
 | History | Metric charts over time |
 | Disk Explorer | Tree view of disk usage |
 
-### Settings (⌘,)
-
-| Section | Options |
-|---------|---------|
-| General | Refresh rate, menu bar mode, launch at login |
-| Alerts | Memory thresholds (80%, 90%, 95%), cooldown |
-| Display | Toggle CPU/Disk/Network/Battery sections |
-| Guard | Auto-kill thresholds, whitelist |
-| Cleanup | Xcode, Docker, cache locations |
-
 ---
 
-## Permissions
+## Comparison with Other Tools
 
-Pulse requests minimal permissions:
-
-| Permission | Why | Required? |
-|------------|-----|-----------|
-| **Full Disk Access** | Security scanner can read protected directories | Optional (feature degraded without) |
-| **Accessibility** | Detect apps with keyboard monitoring | Optional (security scan limited) |
-| **Apple Events** | Count browser tabs, manage apps | Optional (Safari tab count won't work) |
-| **Notifications** | Memory threshold alerts | Optional (alerts won't show) |
-
-### Check Permission Status
-
-Go to **Security** tab → See permission indicators at top.
-
-### Grant Permissions
-
-1. Click "Grant" button next to each permission
-2. System Settings opens automatically
-3. Toggle Pulse in the list
-4. Return to Pulse and click "Rescan"
-
----
-
-## Troubleshooting
-
-### Temperature shows 0°C
-
-SMC-based temperature reading may not work on all Mac models, especially Apple Silicon (M1/M2/M3). This is a hardware limitation, not a bug.
-
-**Workaround:** Use iStat Menus or Stats app for comprehensive sensor support.
-
-### Security scan shows "Limited detection"
-
-Pulse needs Full Disk Access to read certain system directories.
-
-**Fix:** System Settings → Privacy & Security → Full Disk Access → Enable Pulse
-
-### Login Items scan is incomplete
-
-macOS Sonoma+ moved login items to System Settings, which Pulse cannot read.
-
-**Workaround:** Check System Settings → General → Login Items manually.
-
-### Docker cleanup fails
-
-Requires Docker CLI at `/usr/local/bin/docker`.
-
-**Fix:** Install Docker Desktop or ensure Docker CLI is in PATH.
-
-### Tests crash when running HealthScore tests
-
-Some tests require full app context (UNUserNotificationCenter).
-
-**Workaround:** Run specific test suites:
-```bash
-swift test --filter SafetyFeaturesTests  # Works
-swift test --filter AppSettingsTests     # Works
-# Avoid tests that access MemoryMonitorManager.shared
-```
-
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more.
+| Feature | Pulse | Stats | iStat Menus | CleanMyMac |
+|---------|-------|-------|-------------|-------------|
+| **Price** | Free (MIT) | Free (MIT) | $12 | $40/yr |
+| **Menu Bar** | ✅ | ✅ | ✅ | ❌ |
+| **Dashboard** | ✅ | ❌ | ✅ | ✅ |
+| **Health Score** | ✅ (A-F) | ❌ | ✅ | ✅ |
+| **Cache Cleanup** | ✅ (itemized) | ❌ | ❌ | ✅ |
+| **Security Scan** | ✅ | ❌ | ❌ | ✅ |
+| **Process Kill** | ✅ | ❌ | ✅ | ✅ |
+| **Auto-Kill Guard** | ✅ | ❌ | ❌ | ❌ |
+| **Developer Profiles** | ✅ | ❌ | ❌ | ❌ |
+| **Open Source** | ✅ | ✅ | ❌ | ❌ |
+| **macOS 14+** | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -288,42 +222,14 @@ swift test --filter SafetyFeaturesTests
 Pulse/
 ├── MemoryMonitor/Sources/
 │   ├── App.swift                 # Main entry, menu bar, windows
-│   ├── Models/
-│   │   ├── MemoryTypes.swift     # Data models
-│   │   ├── AppSettings.swift     # UserDefaults wrapper
-│   │   ├── Brand.swift           # App branding
-│   │   └── DeveloperProfile.swift # Dev tool definitions
-│   ├── Services/
-│   │   ├── SystemMemoryMonitor.swift
-│   │   ├── ProcessMemoryMonitor.swift
-│   │   ├── CPUMonitor.swift
-│   │   ├── DiskMonitor.swift
-│   │   ├── SystemHealthMonitor.swift
-│   │   ├── SecurityScanner.swift
-│   │   ├── MemoryOptimizer.swift
-│   │   ├── ComprehensiveOptimizer.swift
-│   │   ├── StorageAnalyzer.swift
-│   │   ├── SmartSuggestions.swift
-│   │   └── ... (12 more services)
-│   ├── Views/
-│   │   ├── DashboardView.swift
-│   │   ├── HealthView.swift
-│   │   ├── MemorySection.swift
-│   │   ├── OptimizerView.swift
-│   │   ├── SecurityView.swift
-│   │   ├── DeveloperView.swift
-│   │   └── ... (20 more views)
-│   └── Utilities/
-│       ├── DesignSystem.swift    # Colors, typography, spacing
-│       └── DirectorySizeUtility.swift
-├── Tests/
-│   ├── SafetyFeaturesTests.swift
-│   ├── AppSettingsTests.swift
-│   ├── SecurityScannerTests.swift
-│   └── DeveloperProfilesTests.swift
-├── Pulse.entitlements
+│   ├── Models/                   # Data models and settings
+│   ├── Services/                 # Monitors, scanners, optimizers
+│   ├── Views/                    # SwiftUI views and components
+│   └── Utilities/                # Design system, helpers
+├── Tests/                        # Unit tests
+├── .github/workflows/ci.yml      # CI pipeline
 ├── Package.swift
-└── docs/
+└── README.md
 ```
 
 ### Architecture
@@ -332,7 +238,21 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ### Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Here's how to get started:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run the test suite: `swift test`
+5. Ensure the build passes: `swift build`
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+**Code Quality Gates:**
+- All PRs must pass `swift build` (typecheck + build)
+- All PRs must pass `swift test` (no new test failures)
+- New features should include tests where applicable
 
 **Areas that need help:**
 - [ ] Xcode project for proper entitlements/signing
@@ -345,66 +265,76 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-## Security Considerations
+## Permissions
 
-### What Pulse Can Access
+Pulse requests minimal permissions:
 
-With **Full Disk Access**:
-- All user files
-- System directories (/Library, /System)
-- Other apps' data
+| Permission | Why | Required? |
+|------------|-----|-----------|
+| **Full Disk Access** | Security scanner can read protected directories | Optional |
+| **Accessibility** | Detect apps with keyboard monitoring | Optional |
+| **Apple Events** | Count browser tabs, manage apps | Optional |
+| **Notifications** | Memory threshold alerts | Optional |
 
-Without Full Disk Access:
-- User-owned files only
-- Limited security scanning
-- Cannot read TCC database
+Check permission status in the **Security** tab.
 
-### What Pulse Does With Access
+---
 
-- **Reads:** File sizes, directory contents, process info
-- **Writes:** Deletes cache files (with user confirmation)
-- **Sends:** Nothing (no telemetry, no analytics)
+## Troubleshooting
 
-### Safety Guarantees
+### Temperature shows 0°C
 
-- ✅ Protected system paths cannot be deleted
-- ✅ In-use files are skipped
-- ✅ App bundles are protected
-- ✅ User Documents/Desktop are protected
-- ✅ Whitelist prevents killing critical processes
+SMC-based temperature reading may not work on all Mac models, especially Apple Silicon (M1/M2/M3). This is a hardware limitation.
 
-See [SECURITY.md](SECURITY.md) for security policy and threat model.
+### Security scan shows "Limited detection"
+
+Pulse needs Full Disk Access to read certain system directories. Enable it in System Settings → Privacy & Security → Full Disk Access.
+
+### Login Items scan is incomplete
+
+macOS Sonoma+ moved login items to System Settings, which Pulse cannot read. Check System Settings → General → Login Items manually.
+
+### Docker cleanup fails
+
+Requires Docker CLI at `/usr/local/bin/docker`. Install Docker Desktop or ensure Docker CLI is in PATH.
+
+### Tests crash
+
+Some tests require full app context. Run specific suites:
+```bash
+swift test --filter SafetyFeaturesTests  # Works
+swift test --filter AppSettingsTests     # Works
+```
 
 ---
 
 ## Roadmap
 
-### Phase 1: Foundation (Done)
-- ✅ Core monitoring (memory, CPU, disk, network)
-- ✅ Cache cleanup engine
-- ✅ Security scanner
-- ✅ Safety features (path validation, whitelists)
-- ✅ Test coverage for safety features
+### Phase 1: Foundation ✅
+- Core monitoring (memory, CPU, disk, network)
+- Cache cleanup engine
+- Security scanner
+- Safety features (path validation, whitelists)
+- Test coverage for safety features
 
-### Phase 2: Polish (In Progress)
-- [ ] Truthful documentation (capability matrix, limitations)
-- [ ] Permission diagnostics screen
-- [ ] Xcode project for entitlements
-- [ ] Code signing + notarization
-- [ ] User onboarding flow
+### Phase 2: Polish ✅
+- Truthful documentation (capability matrix, limitations)
+- Permission diagnostics screen
+- User onboarding flow
 
-### Phase 3: Features (Planned)
-- [ ] Historical charts (Swift Charts)
-- [ ] Disk treemap visualization
-- [ ] Scheduled cleanup
-- [ ] Cleanup history with undo
-- [ ] More developer profiles
+### Phase 3: Polish ✅
+- GitHub Actions CI/CD pipeline
+- DesignSystem color token consolidation
+- Dark mode audit and semantic color palette
+- README overhaul with CI badge and feature list
+- CHANGELOG.md with full milestone history
 
 ### Phase 4: Distribution (Future)
-- [ ] Sparkle auto-updates
-- [ ] App Store submission (if feasible)
-- [ ] Website + landing page
-- [ ] Demo videos
+- Xcode project for entitlements
+- Code signing + notarization
+- Sparkle auto-updates
+- Historical charts (Swift Charts)
+- App Store submission (if feasible)
 
 ---
 
@@ -432,5 +362,5 @@ The authors are not responsible for data loss, system instability, or any damage
 
 ---
 
-*Last updated: March 27, 2026*
-*Version: 1.1 (pre-release)*
+*Last updated: April 11, 2026*
+*Version: 1.2.0*

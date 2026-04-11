@@ -60,12 +60,14 @@ struct OptimizeResult {
         let freedMB: Double
         let success: Bool
         let category: Category?
+        let priority: CleanupPriority?
         
-        init(name: String, freedMB: Double, success: Bool, category: Category? = nil) {
+        init(name: String, freedMB: Double, success: Bool, category: Category? = nil, priority: CleanupPriority? = nil) {
             self.name = name
             self.freedMB = freedMB
             self.success = success
             self.category = category
+            self.priority = priority
         }
     }
     

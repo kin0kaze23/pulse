@@ -83,7 +83,7 @@ struct DiskView: View {
                                 .fill(gaugeColor(for: disk).gradient)
                                 .frame(width: geo.size.width * (disk.usedPercentage / 100.0))
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.green.opacity(0.14))
+                                .fill(DesignSystem.ColorPalette.Status.successBackground(0.14))
                         }
                     }
                     .frame(height: 12)
@@ -183,14 +183,14 @@ struct DiskView: View {
                result.totalFreedMB > 0 {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(DesignSystem.ColorPalette.Status.success)
                     Text(result.summary)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
                 }
                 .padding(10)
-                .background(Color.green.opacity(0.08))
+                .background(DesignSystem.ColorPalette.Status.successBackground(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
@@ -244,9 +244,9 @@ struct DiskView: View {
     }
 
     private func gaugeColor(for disk: DiskMonitor.DiskInfo) -> Color {
-        if disk.usedPercentage > 95 { return .red }
-        if disk.usedPercentage > 85 { return .orange }
-        return .blue
+        if disk.usedPercentage > 95 { return DesignSystem.ColorPalette.Status.critical }
+        if disk.usedPercentage > 85 { return DesignSystem.ColorPalette.Status.warning }
+        return DesignSystem.ColorPalette.Status.info
     }
 }
 

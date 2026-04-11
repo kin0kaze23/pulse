@@ -136,7 +136,7 @@ struct CPUProcessRow: View {
             
             Text(String(format: "%.1f%%", process.cpuPercentage))
                 .font(.system(.body, design: .monospaced, weight: .semibold))
-                .foregroundColor(process.cpuPercentage > 50 ? .red : .primary)
+                .foregroundColor(process.cpuPercentage > 50 ? DesignSystem.ColorPalette.Status.critical : .primary)
                 .frame(width: 50, alignment: .trailing)
             
             // Mini bar
@@ -159,7 +159,7 @@ struct CPUProgressBar: View {
     let percentage: Double
     
     private var barColor: Color {
-        percentage > 80 ? .red : percentage > 50 ? .orange : .blue
+        percentage > 80 ? DesignSystem.ColorPalette.Status.critical : percentage > 50 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.info
     }
     
     var body: some View {

@@ -109,7 +109,7 @@ struct DashboardView: View {
             // Icon based on whether permission was granted or revoked
             Image(systemName: PermissionsService.shared.recentChange?.wasGranted == true ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(PermissionsService.shared.recentChange?.wasGranted == true ? .green : .orange)
+                .foregroundColor(PermissionsService.shared.recentChange?.wasGranted == true ? DesignSystem.ColorPalette.Status.success : DesignSystem.ColorPalette.Status.warning)
 
             VStack(alignment: .leading, spacing: 2) {
                 // Specific message about what changed
@@ -447,12 +447,12 @@ struct MemorySection: View {
                     )
 
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                        QuickStatRow(label: "Used", value: String(format: "%.2f GB", memory.usedGB), color: .blue)
-                        QuickStatRow(label: "Free", value: String(format: "%.2f GB", memory.freeGB), color: .green)
-                        QuickStatRow(label: "Cached", value: String(format: "%.2f GB", memory.cachedGB), color: .gray)
+                        QuickStatRow(label: "Used", value: String(format: "%.2f GB", memory.usedGB), color: DesignSystem.ColorPalette.Status.info)
+                        QuickStatRow(label: "Free", value: String(format: "%.2f GB", memory.freeGB), color: DesignSystem.ColorPalette.Status.success)
+                        QuickStatRow(label: "Cached", value: String(format: "%.2f GB", memory.cachedGB), color: DesignSystem.ColorPalette.Background.track)
                         QuickStatRow(label: "Compressed", value: String(format: "%.2f GB", memory.compressedGB), color: .cyan)
                         QuickStatRow(label: "Wired", value: String(format: "%.2f GB", memory.wiredGB), color: .purple)
-                        QuickStatRow(label: "Swap", value: String(format: "%.2f GB", memory.swapUsedGB), color: .orange)
+                        QuickStatRow(label: "Swap", value: String(format: "%.2f GB", memory.swapUsedGB), color: DesignSystem.ColorPalette.Status.warning)
                     }
                     Spacer()
                 }

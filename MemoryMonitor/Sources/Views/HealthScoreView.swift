@@ -55,7 +55,7 @@ struct HealthScoreView: View {
                             icon: "memorychip",
                             label: "Memory",
                             value: String(format: "%.0f%%", memory.usedPercentage),
-                            color: memory.usedPercentage > 85 ? .red : memory.usedPercentage > 75 ? .orange : .green
+                            color: memory.usedPercentage > 85 ? DesignSystem.ColorPalette.Status.critical : memory.usedPercentage > 75 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.success
                         )
                     }
 
@@ -63,8 +63,8 @@ struct HealthScoreView: View {
                         icon: "cpu",
                         label: "CPU",
                         value: String(format: "%.0f%%", manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage),
-                        color: (manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage) > 80 ? .red :
-                            (manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage) > 50 ? .orange : .green
+                        color: (manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage) > 80 ? DesignSystem.ColorPalette.Status.critical :
+                            (manager.cpuMonitor.userCPUPercentage + manager.cpuMonitor.systemCPUPercentage) > 50 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.success
                     )
 
                     if let disk = manager.diskMonitor.primaryDisk {
@@ -72,7 +72,7 @@ struct HealthScoreView: View {
                             icon: "internaldrive",
                             label: "Disk",
                             value: String(format: "%.0f%%", disk.usedPercentage),
-                            color: disk.usedPercentage > 90 ? .red : disk.usedPercentage > 75 ? .orange : .green
+                            color: disk.usedPercentage > 90 ? DesignSystem.ColorPalette.Status.critical : disk.usedPercentage > 75 ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.success
                         )
                     }
 
@@ -186,20 +186,14 @@ struct HealthScoreView: View {
 
     private func severityColor(_ severity: MemoryMonitorManager.Recommendation.Severity) -> Color {
         switch severity {
-        case .info: return .green
-        case .warning: return .orange
-        case .critical: return .red
+        case .info:     return DesignSystem.ColorPalette.Status.success
+        case .warning:  return DesignSystem.ColorPalette.Status.warning
+        case .critical: return DesignSystem.ColorPalette.Status.critical
         }
     }
 
     private var scoreColor: Color {
-        switch manager.healthScore {
-        case 90...100: return .green
-        case 80..<90: return .blue
-        case 70..<80: return .yellow
-        case 50..<70: return .orange
-        default: return .red
-        }
+        DesignSystem.ColorPalette.Health.forScore(manager.healthScore)
     }
 
     private var scoreGradient: LinearGradient {
@@ -212,11 +206,11 @@ struct HealthScoreView: View {
 
     private var thermalColor: Color {
         switch manager.healthMonitor.thermalState {
-        case "Nominal": return .green
-        case "Fair": return .yellow
-        case "Serious": return .orange
-        case "Critical": return .red
-        default: return .gray
+        case "Nominal":  return DesignSystem.ColorPalette.Health.excellent
+        case "Fair":     return DesignSystem.ColorPalette.Health.fair
+        case "Serious":  return DesignSystem.ColorPalette.Health.poor
+        case "Critical": return DesignSystem.ColorPalette.Health.critical
+        default:         return .gray
         }
     }
 }

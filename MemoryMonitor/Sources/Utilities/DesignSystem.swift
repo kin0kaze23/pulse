@@ -94,20 +94,20 @@ enum DesignSystem {
         static let warning = Color.orange
         static let critical = Color.red
         static let info = Color.blue
-        
+
         // Semantic colors for health scores (0-100)
         /// Maps health scores (0-100) to appropriate semantic colors
         /// Green = Excellent health (90-100), Red = Poor health (0-49)
         static func score(_ value: Int) -> Color {
             switch value {
             case 90...100: return .green    // Healthy
-            case 80..<90: return .blue      // Good 
+            case 80..<90: return .blue      // Good
             case 70..<80: return .yellow    // Fair
             case 50..<70: return .orange    // Warning
             default: return .red            // Critical
             }
         }
-        
+
         // Semantic colors for battery percentage
         /// Maps battery percentage and charging state to appropriate colors
         /// Charging appears as Green, low battery as Red for accessibility
@@ -116,15 +116,97 @@ enum DesignSystem {
             if percentage > 20 { return .green }
             return .red  // Low battery warning
         }
-        
+
         // Background opacities for depth and hierarchy
         static let cardBackground = Color.primary.opacity(0.04)
         static let hoverBackground = Color.primary.opacity(0.06)
         static let activeBackground = Color.primary.opacity(0.08)
         static let borderColor = Color.primary.opacity(0.08)
-        
+
         // Material alternatives
         static let ultraThinMaterial = Color.clear
+    }
+
+    // MARK: - Color Palette
+    /// Centralized color tokens for consistent, accessible theming.
+    /// All semantic colors use system-adaptable equivalents and opacity-based variants
+    /// that work correctly in both light and dark modes.
+    enum ColorPalette {
+
+        // MARK: Health Score Colors
+        enum Health {
+            static let excellent = Color(red: 0.188, green: 0.820, blue: 0.345)   // #30D158
+            static let good      = Color(red: 0.039, green: 0.518, blue: 1.000)   // #0A84FF
+            static let fair      = Color(red: 1.000, green: 0.839, blue: 0.039)   // #FFD60A
+            static let poor      = Color(red: 1.000, green: 0.624, blue: 0.227)   // #FF9F0A
+            static let critical  = Color(red: 1.000, green: 0.271, blue: 0.227)   // #FF453A
+
+            /// Maps a 0-100 health score to the appropriate semantic color
+            static func forScore(_ value: Int) -> Color {
+                switch value {
+                case 90...100: return excellent
+                case 80..<90:  return good
+                case 70..<80:  return fair
+                case 50..<70:  return poor
+                default:        return critical
+                }
+            }
+        }
+
+        // MARK: Background Colors (dark-mode safe via primary/secondary)
+        enum Background {
+            static let card      = Color.primary.opacity(0.04)
+            static let elevated  = Color.primary.opacity(0.06)
+            static let overlay   = Color.black.opacity(0.5)
+            static let subtle    = Color.secondary.opacity(0.08)
+            static let track     = Color.gray.opacity(0.15)       // Gauge/track backgrounds
+            static let trackThin = Color.gray.opacity(0.12)       // Thinner tracks
+            static let trackFine = Color.gray.opacity(0.2)        // Fine stroke tracks
+        }
+
+        // MARK: Text Colors (use system semantic colors)
+        enum Text {
+            static let primary   = Color.primary
+            static let secondary = Color.secondary
+            static let tertiary  = Color.secondary.opacity(0.6)
+        }
+
+        // MARK: Status Colors with Dark-Mode Safe Opacity Variants
+        enum Status {
+            // Solid colors for icons and text
+            static let success  = Health.excellent
+            static let info     = Health.good
+            static let warning  = Health.poor
+            static let critical = Health.critical
+
+            // Opacity-based backgrounds (dark-mode safe)
+            static func successBackground(_ opacity: CGFloat = 0.08) -> Color {
+                Health.excellent.opacity(opacity)
+            }
+            static func infoBackground(_ opacity: CGFloat = 0.08) -> Color {
+                Health.good.opacity(opacity)
+            }
+            static func warningBackground(_ opacity: CGFloat = 0.10) -> Color {
+                Health.poor.opacity(opacity)
+            }
+            static func criticalBackground(_ opacity: CGFloat = 0.10) -> Color {
+                Health.critical.opacity(opacity)
+            }
+            static func fairBackground(_ opacity: CGFloat = 0.08) -> Color {
+                Health.fair.opacity(opacity)
+            }
+
+            // Stroke/border variants
+            static func successStroke(_ opacity: CGFloat = 0.3) -> Color {
+                Health.excellent.opacity(opacity)
+            }
+            static func warningStroke(_ opacity: CGFloat = 0.3) -> Color {
+                Health.poor.opacity(opacity)
+            }
+            static func criticalStroke(_ opacity: CGFloat = 0.2) -> Color {
+                Health.critical.opacity(opacity)
+            }
+        }
     }
     
     // MARK: - Shadows

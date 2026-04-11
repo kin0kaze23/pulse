@@ -112,10 +112,10 @@ struct BatteryThermalView: View {
     // MARK: - Helpers
     
     private var batteryColor: Color {
-        if healthMonitor.isCharging { return .green }
-        if healthMonitor.batteryPercentage > 50 { return .green }
-        if healthMonitor.batteryPercentage > 20 { return .orange }
-        return .red
+        if healthMonitor.isCharging { return DesignSystem.ColorPalette.Health.excellent }
+        if healthMonitor.batteryPercentage > 50 { return DesignSystem.ColorPalette.Health.excellent }
+        if healthMonitor.batteryPercentage > 20 { return DesignSystem.ColorPalette.Health.poor }
+        return DesignSystem.ColorPalette.Health.critical
     }
     
     private var thermalIcon: String {
@@ -130,11 +130,11 @@ struct BatteryThermalView: View {
     
     private var thermalColor: Color {
         switch healthMonitor.thermalState {
-        case "Nominal": return .green
-        case "Fair": return .yellow
-        case "Serious": return .orange
-        case "Critical": return .red
-        default: return .gray
+        case "Nominal":  return DesignSystem.ColorPalette.Health.excellent
+        case "Fair":     return DesignSystem.ColorPalette.Health.fair
+        case "Serious":  return DesignSystem.ColorPalette.Health.poor
+        case "Critical": return DesignSystem.ColorPalette.Health.critical
+        default:         return .gray
         }
     }
 }

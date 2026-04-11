@@ -109,7 +109,21 @@ class ComprehensiveOptimizer: ObservableObject {
             let requiresAppClosed: Bool
             let appName: String?
             let warningMessage: String?
+            let priority: CleanupPriority
             var skipReason: String?
+
+            init(name: String, sizeMB: Double, category: OptimizeResult.Category, path: String, isDestructive: Bool, requiresAppClosed: Bool, appName: String?, warningMessage: String?, skipReason: String? = nil, priority: CleanupPriority = .medium) {
+                self.name = name
+                self.sizeMB = sizeMB
+                self.category = category
+                self.path = path
+                self.isDestructive = isDestructive
+                self.requiresAppClosed = requiresAppClosed
+                self.appName = appName
+                self.warningMessage = warningMessage
+                self.skipReason = skipReason
+                self.priority = priority
+            }
 
             var sizeText: String {
                 if sizeMB > 1024 {
@@ -195,7 +209,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: true,
                     requiresAppClosed: false,
                     appName: nil,
-                    warningMessage: "⚠️ Permanently deletes files in Trash"
+                    warningMessage: "Permanently deletes files in Trash",
+                    priority: .high
                 ))
             }
             
@@ -595,6 +610,48 @@ class ComprehensiveOptimizer: ObservableObject {
         scanForCleanup()
     }
 
+    // MARK: - Priority-Based Filtering
+
+    /// Result of grouping cleanup items by priority
+    struct PriorityGroup {
+        let high: [CleanupPlan.CleanupItem]
+        let medium: [CleanupPlan.CleanupItem]
+        let low: [CleanupPlan.CleanupItem]
+        let optional: [CleanupPlan.CleanupItem]
+
+        var allItems: [CleanupPlan.CleanupItem] {
+            high + medium + low + optional
+        }
+
+        var totalSizeMB: Double {
+            allItems.reduce(0) { $0 + $1.sizeMB }
+        }
+
+        var itemCount: Int { allItems.count }
+    }
+
+    /// Group the current cleanup plan items by priority.
+    /// Returns nil if no plan has been scanned yet.
+    func scanByPriority() -> PriorityGroup? {
+        guard let plan = currentPlan else { return nil }
+
+        var high: [CleanupPlan.CleanupItem] = []
+        var medium: [CleanupPlan.CleanupItem] = []
+        var low: [CleanupPlan.CleanupItem] = []
+        var optional: [CleanupPlan.CleanupItem] = []
+
+        for item in plan.items {
+            switch item.priority {
+            case .high: high.append(item)
+            case .medium: medium.append(item)
+            case .low: low.append(item)
+            case .optional: optional.append(item)
+            }
+        }
+
+        return PriorityGroup(high: high, medium: medium, low: low, optional: optional)
+    }
+
     // MARK: - Scanner Methods (Dry-Run)
 
     private func scanDeveloperCaches() -> [CleanupPlan.CleanupItem] {
@@ -644,7 +701,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: false,
                     requiresAppClosed: true,
                     appName: "Xcode",
-                    warningMessage: xcodeRunning ? "Close Xcode to clean safely" : nil
+                    warningMessage: xcodeRunning ? "Close Xcode to clean safely" : nil,
+                    priority: .medium
                 ))
             }
         }
@@ -661,7 +719,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: false,
                     requiresAppClosed: false,
                     appName: nil,
-                    warningMessage: "Removes old device debugging symbols"
+                    warningMessage: "Removes old device debugging symbols",
+                    priority: .medium
                 ))
             }
         }
@@ -677,7 +736,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false, // NOT destructive - build artifacts can be rebuilt
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: "Contains archived builds - delete only if you don't need them"
+                warningMessage: "Contains archived builds - delete only if you don't need them",
+                priority: .low
             ))
         }
         
@@ -692,7 +752,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: "Run 'xcrun simctl delete unavailable' to clean safely"
+                warningMessage: "Run 'xcrun simctl delete unavailable' to clean safely",
+                priority: .low
             ))
         }
 
@@ -834,7 +895,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "Safari",
-                warningMessage: safariRunning ? "Close Safari to clean safely" : nil
+                warningMessage: safariRunning ? "Close Safari to clean safely" : nil,
+                priority: .medium
             ))
         }
 
@@ -850,7 +912,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "Google Chrome",
-                warningMessage: chromeRunning ? "Close Chrome to clean safely" : nil
+                warningMessage: chromeRunning ? "Close Chrome to clean safely" : nil,
+                priority: .medium
             ))
         }
 
@@ -866,7 +929,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "Firefox",
-                warningMessage: firefoxRunning ? "Close Firefox to clean safely" : nil
+                warningMessage: firefoxRunning ? "Close Firefox to clean safely" : nil,
+                priority: .medium
             ))
         }
 
@@ -882,7 +946,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "Brave Browser",
-                warningMessage: braveRunning ? "Close Brave to clean safely" : nil
+                warningMessage: braveRunning ? "Close Brave to clean safely" : nil,
+                priority: .medium
             ))
         }
 
@@ -905,7 +970,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                priority: .medium
             ))
         }
         
@@ -920,7 +986,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: "May require admin privileges"
+                warningMessage: "May require admin privileges",
+                priority: .medium
             ))
         }
         
@@ -935,7 +1002,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                priority: .high
             ))
         }
         
@@ -945,7 +1013,7 @@ class ComprehensiveOptimizer: ObservableObject {
     private func scanSystemCaches() -> [CleanupPlan.CleanupItem] {
         var items: [CleanupPlan.CleanupItem] = []
 
-        // QuickLook
+        // QuickLook - HIGH priority, always safe
         let qlSize = fastDirectorySizeMB("~/Library/Caches/com.apple.QuickLook.thumbnailcache")
         if qlSize > 10 {
             items.append(.init(
@@ -956,11 +1024,12 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                priority: .high
             ))
         }
 
-        // Icon services
+        // Icon services - HIGH priority, always safe
         let iconSize = fastDirectorySizeMB("~/Library/Caches/com.apple.iconservices.store")
         if iconSize > 10 {
             items.append(.init(
@@ -971,11 +1040,12 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                priority: .high
             ))
         }
         
-        // Software Update caches
+        // Software Update caches - HIGH priority, always safe
         let updateSize = fastDirectorySizeMB("~/Library/Caches/com.apple.SoftwareUpdate")
         if updateSize > 50 {
             items.append(.init(
@@ -986,7 +1056,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                priority: .high
             ))
         }
         

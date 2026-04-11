@@ -8,17 +8,17 @@ struct MemoryGaugeView: View {
 
     private var gaugeColor: Color {
         switch pressureLevel {
-        case .normal: return .green
-        case .warning: return .orange
-        case .critical: return .red
+        case .normal:    return DesignSystem.ColorPalette.Health.excellent
+        case .warning:   return DesignSystem.ColorPalette.Health.poor
+        case .critical:  return DesignSystem.ColorPalette.Health.critical
         }
     }
 
     private var gradientColors: [Color] {
         switch pressureLevel {
-        case .normal: return [.green, .green.opacity(0.6)]
-        case .warning: return [.orange, .yellow]
-        case .critical: return [.red, .orange]
+        case .normal:    return [DesignSystem.ColorPalette.Health.excellent, DesignSystem.ColorPalette.Health.excellent.opacity(0.6)]
+        case .warning:   return [DesignSystem.ColorPalette.Health.poor, DesignSystem.ColorPalette.Health.fair]
+        case .critical:  return [DesignSystem.ColorPalette.Health.critical, DesignSystem.ColorPalette.Health.poor]
         }
     }
 

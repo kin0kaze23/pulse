@@ -69,7 +69,7 @@ struct SmartSuggestionsView: View {
             Spacer()
         }
         .padding(DesignSystem.Spacing.md)
-        .background(Color.green.opacity(0.08))
+        .background(DesignSystem.ColorPalette.Status.successBackground(0.08))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.medium))
     }
 

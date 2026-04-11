@@ -99,10 +99,10 @@ struct AutoKillView: View {
             if !autoKill.monitoredProcesses.isEmpty {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
+                        .foregroundColor(DesignSystem.ColorPalette.Status.warning)
                     Text("Currently Elevated")
                         .font(DesignSystem.Typography.headline)
-                        .foregroundColor(.orange)
+                        .foregroundColor(DesignSystem.ColorPalette.Status.warning)
                 }
                 
                 ForEach(autoKill.monitoredProcesses) { proc in
@@ -111,7 +111,7 @@ struct AutoKillView: View {
             } else {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(DesignSystem.ColorPalette.Status.success)
                     Text("All processes running normally")
                         .font(DesignSystem.Typography.body)
                         .foregroundColor(.secondary)
@@ -130,7 +130,7 @@ struct AutoKillView: View {
             
             Text(String(format: "%.1f GB", proc.memoryGB))
                 .font(.system(.caption, design: .monospaced))
-                .foregroundColor(.red)
+                .foregroundColor(DesignSystem.ColorPalette.Status.critical)
             
             Text(proc.threat.rawValue)
                 .font(.system(.caption, design: .rounded, weight: .bold))
@@ -153,13 +153,13 @@ struct AutoKillView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color.red)
+                    .background(DesignSystem.ColorPalette.Status.critical)
                     .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.small))
             }
             .buttonStyle(.plain)
         }
         .padding(DesignSystem.Spacing.sm)
-        .background(Color.red.opacity(0.05))
+        .background(DesignSystem.ColorPalette.Status.criticalBackground(0.05))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.small))
     }
     
@@ -199,7 +199,7 @@ struct AutoKillView: View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: entry.wasAutoKilled ? "bolt.fill" : "hand.raised.fill")
                 .font(.caption)
-                .foregroundColor(entry.wasAutoKilled ? .orange : .blue)
+                .foregroundColor(entry.wasAutoKilled ? DesignSystem.ColorPalette.Status.warning : DesignSystem.ColorPalette.Status.info)
             
             Text(entry.processName)
                 .font(DesignSystem.Typography.caption)
@@ -248,7 +248,7 @@ struct AutoKillView: View {
         HStack(spacing: DesignSystem.Spacing.xs) {
             Image(systemName: "app.fill")
                 .font(.caption2)
-                .foregroundColor(.blue)
+                .foregroundColor(DesignSystem.ColorPalette.Status.info)
             Text(name)
                 .font(.system(.caption, design: .rounded))
             Button {
@@ -262,7 +262,7 @@ struct AutoKillView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.blue.opacity(0.1))
+        .background(DesignSystem.ColorPalette.Status.infoBackground(0.1))
         .clipShape(Capsule())
     }
     
@@ -289,9 +289,9 @@ struct AutoKillView: View {
     
     private func threatColor(_ level: AutoKillManager.RunawayCandidate.ThreatLevel) -> Color {
         switch level {
-        case .warning: return .orange
-        case .severe: return .red
-        case .critical: return .purple
+        case .warning:  return DesignSystem.ColorPalette.Status.warning
+        case .severe:   return DesignSystem.ColorPalette.Status.critical
+        case .critical: return Color.purple
         }
     }
 }
