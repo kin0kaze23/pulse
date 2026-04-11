@@ -124,11 +124,22 @@ struct MetricPoint: Identifiable, Codable {
 /// Collects and stores historical system metrics for chart visualization
 class HistoricalMetricsService: ObservableObject {
     static let shared = HistoricalMetricsService()
-    
+
     @Published var metrics: [MetricPoint] = []
     @Published var isRecording = false
     @Published var recordingInterval: TimeInterval = 30 // 30 seconds by default
     @Published var retentionDuration: TimeInterval = 24 * 60 * 60 // 24 hours
+
+    // MARK: - Trigger Event Storage
+
+    /// In-memory cache of trigger events
+    @Published private(set) var triggerEvents: [TriggerEvent] = []
+
+    /// File path for trigger events
+    private lazy var triggerEventsFilePath: URL = {
+        let appDir = appSupportDirectory.appendingPathComponent("Pulse")
+        return appDir.appendingPathComponent("trigger_events.json")
+    }()
     
     private var timer: Timer?
     private let workQueue = DispatchQueue(label: "com.pulse.historicalmetrics", qos: .background)
@@ -162,6 +173,7 @@ class HistoricalMetricsService: ObservableObject {
     
     private init() {
         loadSavedHistory()
+        loadTriggerEvents()
         setupMonitors()
     }
     
@@ -363,7 +375,7 @@ enum TimeRange: String, CaseIterable {
     case last6Hours = "Past 6 Hours"
     case last24Hours = "Today"
     case lastWeek = "Past Week"
-    
+
     var seconds: TimeInterval {
         switch self {
         case .last1Hour: return 1 * 60 * 60
@@ -372,7 +384,7 @@ enum TimeRange: String, CaseIterable {
         case .lastWeek: return 7 * 24 * 60 * 60
         }
     }
-    
+
     var label: String {
         switch self {
         case .last1Hour: return "Past Hour"
@@ -380,5 +392,111 @@ enum TimeRange: String, CaseIterable {
         case .last24Hours: return "Today"
         case .lastWeek: return "Past Week"
         }
+    }
+}
+
+// MARK: - Trigger Event Storage
+
+/// Extension to handle trigger event persistence
+extension HistoricalMetricsService {
+
+    /// Load trigger events from disk
+    func loadTriggerEvents() {
+        do {
+            if fileManager.fileExists(atPath: triggerEventsFilePath.path) {
+                let data = try Data(contentsOf: triggerEventsFilePath)
+                triggerEvents = try JSONDecoder().decode([TriggerEvent].self, from: data)
+                print("[HistoricalMetricsService] Loaded \(triggerEvents.count) trigger events from \(triggerEventsFilePath.path)")
+            }
+        } catch {
+            print("[HistoricalMetricsService] Failed to load trigger events: \(error)")
+            triggerEvents = []
+        }
+    }
+
+    /// Save trigger events to disk
+    private func saveTriggerEvents() {
+        do {
+            let data = try JSONEncoder().encode(triggerEvents)
+            try data.write(to: triggerEventsFilePath)
+        } catch {
+            print("[HistoricalMetricsService] Failed to save trigger events: \(error)")
+        }
+    }
+
+    /// Add a new trigger event
+    func addTriggerEvent(_ event: TriggerEvent) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.triggerEvents.insert(event, at: 0) // Most recent first
+
+            // Limit stored events to prevent unbounded growth
+            let maxStoredEvents = 1000
+            if self.triggerEvents.count > maxStoredEvents {
+                self.triggerEvents = Array(self.triggerEvents.prefix(maxStoredEvents))
+            }
+
+            // Save to disk
+            self.saveTriggerEvents()
+        }
+    }
+
+    /// Get trigger events filtered by criteria
+    func getTriggerEvents(
+        filter: TriggerFilter = .all,
+        limit: Int = 100
+    ) -> [TriggerEvent] {
+        var events = triggerEvents
+
+        // Apply filter
+        switch filter {
+        case .all:
+            break
+        case .today:
+            let calendar = Calendar.current
+            let startOfDay = calendar.startOfDay(for: Date())
+            events = events.filter { $0.timestamp >= startOfDay }
+        case .thisWeek:
+            let weekAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            events = events.filter { $0.timestamp >= weekAgo }
+        case .automation:
+            events = events.filter { $0.type.category == .automation }
+        case .scheduled:
+            events = events.filter { $0.type.category == .scheduled }
+        case .manual:
+            events = events.filter { $0.type.category == .manual }
+        }
+
+        return Array(events.prefix(limit))
+    }
+
+    /// Get trigger statistics
+    func getTriggerStatistics() -> TriggerStatistics {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfDay = calendar.startOfDay(for: now)
+        let weekAgo = now.addingTimeInterval(-7 * 24 * 60 * 60)
+
+        let totalEvents = triggerEvents.count
+        let todayEvents = triggerEvents.filter { $0.timestamp >= startOfDay }.count
+        let weekEvents = triggerEvents.filter { $0.timestamp >= weekAgo }.count
+        let successfulEvents = triggerEvents.filter { $0.success }.count
+        let failedEvents = triggerEvents.filter { !$0.success }.count
+        let totalFreedMB = triggerEvents.compactMap { $0.freedMB }.reduce(0, +)
+
+        return TriggerStatistics(
+            totalEvents: totalEvents,
+            todayEvents: todayEvents,
+            weekEvents: weekEvents,
+            successfulEvents: successfulEvents,
+            failedEvents: failedEvents,
+            totalFreedMB: totalFreedMB
+        )
+    }
+
+    /// Clear all trigger events
+    func clearTriggerEvents() {
+        triggerEvents.removeAll()
+        saveTriggerEvents()
     }
 }

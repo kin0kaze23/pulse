@@ -7,6 +7,17 @@ import Combine
 class MemoryOptimizer: ObservableObject {
     static let shared = MemoryOptimizer()
 
+    // MARK: - Safety Thresholds
+
+    /// Total size threshold (MB) above which review is required
+    static let reviewThresholdMB: Double = 20 * 1024 // 20 GB
+
+    /// Single item threshold (MB) above which review is required
+    static let singleItemThresholdMB: Double = 10 * 1024 // 10 GB
+
+    /// Total size threshold (MB) above which secondary confirmation is required
+    static let confirmationThresholdMB: Double = 50 * 1024 // 50 GB
+
     @Published var isWorking = false
     @Published var lastResult: OptimizeResult?
     @Published var statusMessage: String = ""
@@ -15,13 +26,229 @@ class MemoryOptimizer: ObservableObject {
     @Published var isScanningDiskCleanup = false
     @Published var showCleanupConfirmation = false
     @Published var pendingCleanupPlan: ComprehensiveOptimizer.CleanupPlan?
-    
+
+    /// Track which items are selected for cleanup (by ID)
+    @Published var selectedItemIds: Set<UUID> = []
+
+    /// Selected items based on selection state
+    var selectedItems: [ComprehensiveOptimizer.CleanupPlan.CleanupItem] {
+        guard let plan = pendingCleanupPlan else { return [] }
+        return plan.items.filter { selectedItemIds.contains($0.id) }
+    }
+
+    /// Total size of selected items
+    var selectedTotalSizeMB: Double {
+        selectedItems.reduce(0) { $0 + $1.sizeMB }
+    }
+
+    /// Total size of safe items (for MenuBarLite quick clean)
+    var safeTotalSizeMB: Double {
+        safeItems.reduce(0) { $0 + $1.sizeMB }
+    }
+
+    /// Whether there are any review or permanent items in the current plan
+    var hasReviewItems: Bool {
+        !reviewItems.isEmpty || !permanentItems.isEmpty
+    }
+
+    /// Initialize selections - default to safe items only
+    func initializeSelections() {
+        guard let plan = pendingCleanupPlan else { return }
+        selectedItemIds = Set(plan.items.filter { isSafeToClean($0) }.map { $0.id })
+    }
+
+    /// Log a detailed proof table for verification
+    func logProofTable(for plan: ComprehensiveOptimizer.CleanupPlan) {
+        print("\n" + "=" .padding(toLength: 100, withPad: "=", startingAt: 0))
+        print("CLEANUP PROOF TABLE - Total: \(plan.totalSizeText) (\(Int(plan.totalSizeMB)) MB)")
+        print("=" .padding(toLength: 100, withPad: "=", startingAt: 0))
+
+        let sortedItems = plan.items.sorted { $0.sizeMB > $1.sizeMB }
+
+        print(String(format: "%-6s %-30s %-45s %12s %10s %-12s %-8s",
+                    "#", "Label", "Path", "Est.Size", "Method", "Risk", "Default"))
+        print("-" .padding(toLength: 100, withPad: "-", startingAt: 0))
+
+        for (index, item) in sortedItems.enumerated() {
+            let risk = riskLevel(for: item)
+            let isDefault = selectedItemIds.contains(item.id) ? "YES" : "no"
+            let method = "du -sk (fast)"
+
+            let label = item.name.prefix(28)
+            let path = item.path.prefix(43)
+
+            print(String(format: "%-6d %-30s %-45s %10.0f MB %10s %-12s %-8s",
+                        index + 1,
+                        String(label),
+                        String(path),
+                        item.sizeMB,
+                        method,
+                        risk,
+                        isDefault))
+        }
+
+        print("-" .padding(toLength: 100, withPad: "-", startingAt: 0))
+        print("TOP CONTRIBUTORS:")
+        for (index, item) in sortedItems.prefix(5).enumerated() {
+            print("  \(index + 1). \(item.name): \(item.sizeMB > 1024 ? String(format: "%.1f GB", item.sizeMB/1024) : String(format: "%.0f MB", item.sizeMB))")
+        }
+        print("=" .padding(toLength: 100, withPad: "=", startingAt: 0))
+        print("")
+    }
+
+    /// Determine risk level for an item
+    private func riskLevel(for item: ComprehensiveOptimizer.CleanupPlan.CleanupItem) -> String {
+        if item.isDestructive { return "MANUAL" }
+        if item.sizeMB > Self.singleItemThresholdMB { return "REVIEW" }
+        if isSafeToClean(item) { return "SAFE" }
+        return "REVIEW"
+    }
+
+    /// Generate dry-run summary
+    func logDryRunSummary() {
+        guard let plan = pendingCleanupPlan else { return }
+
+        print("\n" + "=" .padding(toLength: 80, withPad: "=", startingAt: 0))
+        print("DRY-RUN SUMMARY - Cleanup Validation")
+        print("=" .padding(toLength: 80, withPad: "=", startingAt: 0))
+
+        let selected = selectedItems
+        let selectedTotal = selectedTotalSizeMB
+
+        print("Selected items: \(selected.count)")
+        print("Selected total: \(selectedTotal > 1024 ? String(format: "%.1f GB", selectedTotal/1024) : String(format: "%.0f MB", selectedTotal))")
+        print("")
+
+        print("WILL BE DELETED:")
+        for item in selected {
+            print("  - \(item.name) (\(item.path)) - \(item.sizeMB > 1024 ? String(format: "%.1f GB", item.sizeMB/1024) : String(format: "%.0f MB", item.sizeMB))")
+        }
+        print("")
+
+        let unselected = plan.items.filter { !selectedItemIds.contains($0.id) }
+        print("WILL BE SKIPPED (\(unselected.count) items):")
+        for item in unselected {
+            let reason = riskLevel(for: item) == "MANUAL" ? "destructive" :
+                        riskLevel(for: item) == "REVIEW" ? "review required" : "not safe"
+            print("  - \(item.name): \(reason)")
+        }
+        print("=" .padding(toLength: 80, withPad: "=", startingAt: 0))
+        print("")
+    }
+
+    /// Toggle selection for an item
+    func toggleSelection(_ itemId: UUID) {
+        if selectedItemIds.contains(itemId) {
+            selectedItemIds.remove(itemId)
+        } else {
+            selectedItemIds.insert(itemId)
+        }
+    }
+
+    /// Select all safe items
+    func selectAllSafe() {
+        guard let plan = pendingCleanupPlan else { return }
+        selectedItemIds = Set(plan.items.filter { isSafeToClean($0) }.map { $0.id })
+    }
+
+    /// Deselect all items
+    func deselectAll() {
+        selectedItemIds.removeAll()
+    }
+
+    // MARK: - Safety State
+
+    /// Whether the current cleanup plan requires review (total > 20GB or any item > 10GB)
+    var requiresReview: Bool {
+        guard let plan = pendingCleanupPlan else { return false }
+        return plan.totalSizeMB > Self.reviewThresholdMB ||
+               plan.items.contains { $0.sizeMB > Self.singleItemThresholdMB }
+    }
+
+    /// Whether the current cleanup plan requires explicit confirmation (total > 50GB)
+    var requiresExplicitConfirmation: Bool {
+        guard let plan = pendingCleanupPlan else { return false }
+        return plan.totalSizeMB > Self.confirmationThresholdMB
+    }
+
+    /// Items that are clearly safe (small caches, rebuildable)
+    var safeItems: [ComprehensiveOptimizer.CleanupPlan.CleanupItem] {
+        guard let plan = pendingCleanupPlan else { return [] }
+        return plan.items.filter { isSafeToClean($0) }
+    }
+
+    /// Items that require review (large or potentially destructive)
+    var reviewItems: [ComprehensiveOptimizer.CleanupPlan.CleanupItem] {
+        guard let plan = pendingCleanupPlan else { return [] }
+        return plan.items.filter { !isSafeToClean($0) }
+    }
+
+    /// Items that are permanent/destructive - should never be auto-selected
+    /// This includes Trash and explicitly destructive operations
+    var permanentItems: [ComprehensiveOptimizer.CleanupPlan.CleanupItem] {
+        guard let plan = pendingCleanupPlan else { return [] }
+        return plan.items.filter { isPermanent($0) }
+    }
+
+    /// Check if an item is permanent (cannot be auto-cleaned safely)
+    func isPermanent(_ item: ComprehensiveOptimizer.CleanupPlan.CleanupItem) -> Bool {
+        // Trash is permanent deletion - must never be auto-selected
+        if item.name == "Trash" { return true }
+
+        // Explicitly destructive items
+        if item.isDestructive { return true }
+
+        // Very large items should require explicit user action
+        if item.sizeMB > Self.singleItemThresholdMB { return true }
+
+        return false
+    }
+
+    /// Check if a specific item is safe to auto-clean
+    func isSafeToClean(_ item: ComprehensiveOptimizer.CleanupPlan.CleanupItem) -> Bool {
+        // Trash is NEVER safe to auto-clean (permanent deletion)
+        if item.name == "Trash" { return false }
+
+        // Large items always require review
+        if item.sizeMB > Self.singleItemThresholdMB { return false }
+
+        // Items marked as destructive require review
+        if item.isDestructive { return false }
+
+        // Developer items need per-item check
+        if item.category == .developer {
+            // Safe developer caches (rebuildable)
+            let safeDevPatterns = ["npm", "yarn", "pnpm", "pip", "gradle", "cargo", "go-build",
+                                    "Homebrew", "TypeScript", "Vite", "bun", "JetBrains", "VS Code"]
+            let isSafePattern = safeDevPatterns.contains { item.name.lowercased().contains($0.lowercased()) }
+            return isSafePattern
+        }
+
+        // System caches under threshold are generally safe
+        if item.category == .system && item.sizeMB < Self.singleItemThresholdMB {
+            return true
+        }
+
+        // Browser caches are safe
+        if item.category == .browser {
+            return true
+        }
+
+        // Application caches are safe
+        if item.category == .application {
+            return true
+        }
+
+        // Default to review for unknown items
+        return false
+    }
+
     // Combine cancellables for completion waiting
     private var completionCancellable: AnyCancellable?
     private var scanCancellable: AnyCancellable?
 
     // MARK: - Type Aliases to Shared Types
-    
+
     /// Type alias to shared OptimizeResult
     typealias OptimizeResult = Pulse.OptimizeResult
 
@@ -149,6 +376,15 @@ class MemoryOptimizer: ObservableObject {
                 self.statusMessage = ""
                 self.pendingCleanupPlan = plan
                 self.showCleanupConfirmation = true
+                // Initialize selections - default to safe items only
+                self.initializeSelections()
+
+                // Log proof table for verification
+                self.logProofTable(for: plan)
+
+                // Log dry-run summary
+                self.logDryRunSummary()
+
                 print("[MemoryOptimizer] Showing confirmation dialog for \(plan.items.count) items, \(plan.totalSizeMB)MB")
             } else if let plan = self.comprehensive.currentPlan, plan.items.count > 0 {
                 // Has plan but no confirmation needed - execute directly
@@ -186,9 +422,9 @@ class MemoryOptimizer: ObservableObject {
         // Dismiss confirmation dialog immediately
         showCleanupConfirmation = false
         
-        print("[MemoryOptimizer] Starting cleanup execution")
+        print("[MemoryOptimizer] Starting cleanup execution for \(selectedItemIds.count) selected items")
 
-        comprehensive.executeCleanup()
+        comprehensive.executeCleanup(selectedIds: selectedItemIds)
 
         isWorking = true
         statusMessage = "Cleaning up..."

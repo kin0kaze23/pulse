@@ -15,6 +15,7 @@ class StorageAnalyzer: ObservableObject {
     @Published var nodeModulesFolders: [StorageItem] = []
     @Published var largeFiles: [StorageItem] = []
     @Published var iosBackups: [StorageItem] = []
+    @Published var timeMachineSnapshots: [StorageItem] = []
     @Published var downloadsItems: [StorageItem] = []
     @Published var messagesAttachments: [StorageItem] = []
     
@@ -23,6 +24,7 @@ class StorageAnalyzer: ObservableObject {
     @Published var totalNodeModulesGB: Double = 0
     @Published var totalLargeFilesGB: Double = 0
     @Published var totalIOSBackupsGB: Double = 0
+    @Published var totalTimeMachineSnapshotsGB: Double = 0
     @Published var totalDownloadsGB: Double = 0
     @Published var totalMessagesGB: Double = 0
     @Published var totalRecoverableGB: Double = 0
@@ -116,7 +118,11 @@ class StorageAnalyzer: ObservableObject {
             DispatchQueue.main.async { self.statusMessage = "Scanning iOS backups..."; self.scanProgress = 0.5 }
             self.scanIOSBackups()
             
-            // Phase 4: Large Files (can be slow)
+            // Phase 4: Time Machine Local Snapshots (quick)
+            DispatchQueue.main.async { self.statusMessage = "Scanning Time Machine snapshots..."; self.scanProgress = 0.6 }
+            self.scanTimeMachineSnapshots()
+            
+            // Phase 5: Large Files (can be slow)
             DispatchQueue.main.async { self.statusMessage = "Finding large files..."; self.scanProgress = 0.7 }
             self.scanLargeFiles()
             
@@ -130,7 +136,7 @@ class StorageAnalyzer: ObservableObject {
             
             // Calculate totals
             let total = self.totalIOSUpdatesGB + self.totalNodeModulesGB + 
-                       self.totalLargeFilesGB + self.totalIOSBackupsGB + 
+                       self.totalLargeFilesGB + self.totalIOSBackupsGB + self.totalTimeMachineSnapshotsGB + 
                        self.totalDownloadsGB + self.totalMessagesGB
             
             DispatchQueue.main.async {
@@ -312,6 +318,104 @@ class StorageAnalyzer: ObservableObject {
         DispatchQueue.main.async {
             self.iosBackups = items
             self.totalIOSBackupsGB = totalGB
+        }
+    }
+
+    /// Scan for Time Machine local snapshots using tmutil
+    func scanTimeMachineSnapshots() {
+        var items: [StorageItem] = []
+        var totalGB: Double = 0
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/tmutil")
+        task.arguments = ["listlocalsnapshots", "/"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+
+            // Parse snapshot dates from output
+            let lines = output.components(separatedBy: .newlines)
+
+            for line in lines {
+                guard line.contains("local_snapshot") else { continue }
+
+                let parts = line.components(separatedBy: ".")
+                guard parts.count >= 4 else { continue }
+
+                let dateStr = parts.suffix(2).joined(separator: ".")
+                let snapshotName = parts.last ?? line
+
+                let estimatedSizeGB: Double = 5.0 // Conservative estimate
+
+                items.append(StorageItem(
+                    name: "Time Machine Snapshot - \(dateStr)",
+                    path: "/Volumes/com.apple.TimeMachine.local_snapshots/\(snapshotName)",
+                    sizeGB: estimatedSizeGB,
+                    category: .iosBackup,
+                    isDeletable: true,
+                    warningMessage: "⚠️ This snapshot will be permanently deleted",
+                    lastModified: nil
+                ))
+
+                totalGB += estimatedSizeGB
+            }
+
+            items.sort { $0.name > $1.name }
+
+            DispatchQueue.main.async {
+                self.timeMachineSnapshots = items
+                self.totalTimeMachineSnapshotsGB = totalGB
+            }
+        } catch {
+            print("[StorageAnalyzer] Time Machine snapshot scan failed: \(error)")
+            DispatchQueue.main.async {
+                self.timeMachineSnapshots = []
+                self.totalTimeMachineSnapshotsGB = 0
+            }
+        }
+    }
+
+    /// Delete a Time Machine local snapshot using tmutil
+    func deleteTimeMachineSnapshot(_ item: StorageItem, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let parts = item.name.components(separatedBy: " - ")
+            guard parts.count == 2 else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            let snapshotDate = parts[1].replacingOccurrences(of: ".", with: "-")
+
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/tmutil")
+            task.arguments = ["deletelocalsnapshots", snapshotDate]
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+
+                let success = task.terminationStatus == 0
+
+                DispatchQueue.main.async {
+                    if success {
+                        self.timeMachineSnapshots.removeAll { $0.id == item.id }
+                        self.totalTimeMachineSnapshotsGB = max(0, self.totalTimeMachineSnapshotsGB - item.sizeGB)
+                        self.totalRecoverableGB = max(0, self.totalRecoverableGB - item.sizeGB)
+                    }
+                    completion(success)
+                }
+            } catch {
+                print("[StorageAnalyzer] Failed to delete snapshot: \(error)")
+                DispatchQueue.main.async { completion(false) }
+            }
         }
     }
     

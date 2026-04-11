@@ -11,6 +11,7 @@ class AlertManager: ObservableObject {
 
     private var lastAlertTime: [Double: Date] = [:]
     private let settings = AppSettings.shared
+    private let quietHoursManager = QuietHoursManager.shared
 
     // Sound preference — defaults to false (silent), user opts-in
     @Published var soundsEnabled: Bool {
@@ -156,6 +157,13 @@ class AlertManager: ObservableObject {
     // MARK: - macOS Notification
 
     private func sendNotification(notification: AlertNotification, playSound: Bool = false) {
+        // Check quiet hours - suppress non-critical notifications
+        let isCritical = notification.threshold.percentage >= 95
+        if quietHoursManager.shouldSuppressNotification(isCritical: isCritical) {
+            print("[AlertManager] Notification suppressed during quiet hours: \(notification.threshold.label)")
+            return
+        }
+
         // Use UNUserNotificationCenter exclusively (NSUserNotification is deprecated)
         let content = UNMutableNotificationContent()
         content.title = "⚠️ Memory Alert — \(notification.threshold.label)"
@@ -217,5 +225,64 @@ class AlertManager: ObservableObject {
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request) { _ in }
+    }
+
+    // MARK: - Disk Space Alerts
+
+    private var lastDiskAlertTime: Date?
+
+    func checkDiskSpace(freeGB: Double) {
+        guard settings.notificationsEnabled else { return }
+        guard settings.diskSpaceGuardianEnabled else { return }
+
+        let warningThreshold = settings.diskWarningThresholdGB
+        let criticalThreshold = settings.diskCriticalThresholdGB
+
+        if freeGB <= criticalThreshold {
+            fireDiskAlert(level: .critical, freeGB: freeGB)
+        } else if freeGB <= warningThreshold {
+            fireDiskAlert(level: .warning, freeGB: freeGB)
+        }
+    }
+
+    private func fireDiskAlert(level: DiskHealthLevel, freeGB: Double) {
+        // Check cooldown (5 min for critical, 15 min for warning)
+        let cooldownSeconds: Double = level == .critical ? 300 : 900
+        if let lastTime = lastDiskAlertTime, Date().timeIntervalSince(lastTime) < cooldownSeconds {
+            return
+        }
+        lastDiskAlertTime = Date()
+
+        // Check quiet hours - suppress non-critical alerts
+        let isCritical = level == .critical
+        if quietHoursManager.shouldSuppressNotification(isCritical: isCritical) {
+            print("[AlertManager] Disk alert suppressed during quiet hours: \(level.rawValue)")
+            return
+        }
+
+        // Send notification
+        let content = UNMutableNotificationContent()
+        content.title = level == .critical ? "⚠️ Critical: Disk Space Low" : "⚠️ Warning: Disk Space Low"
+        content.body = "Only \(String(format: "%.1f", freeGB)) GB free. \(cleanupRecommendation(for: level))"
+        content.sound = level == .critical ? .default : nil
+        content.categoryIdentifier = "DISK_SPACE_ALERT"
+
+        let request = UNNotificationRequest(
+            identifier: "disk-space-\(level.rawValue)-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func cleanupRecommendation(for level: DiskHealthLevel) -> String {
+        switch level {
+        case .critical:
+            return "Auto-cleanup will run if enabled."
+        case .warning:
+            return "Consider running cleanup from Pulse menu."
+        case .healthy:
+            return ""
+        }
     }
 }

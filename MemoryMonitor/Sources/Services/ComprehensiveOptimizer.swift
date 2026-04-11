@@ -242,12 +242,22 @@ class ComprehensiveOptimizer: ObservableObject {
         }
     }
 
-    /// Execute the cleanup plan (requires prior scanForCleanup call)
-    /// Returns immediately if confirmation is needed and not granted
-    func executeCleanup() {
+    /// Execute cleanup for selected items only (filters the plan)
+    /// - Parameter selectedIds: Set of item IDs to actually clean
+    func executeCleanup(selectedIds: Set<UUID>) {
         guard !isWorking, let plan = currentPlan else {
             // No plan, run full optimization
             fullOptimize()
+            return
+        }
+
+        // Filter to only selected items
+        let filteredItems = plan.items.filter { selectedIds.contains($0.id) }
+
+        guard !filteredItems.isEmpty else {
+            print("[ComprehensiveOptimizer] No items selected for cleanup")
+            isWorking = false
+            statusMessage = "No items selected"
             return
         }
 
@@ -257,17 +267,33 @@ class ComprehensiveOptimizer: ObservableObject {
         statusMessage = "Starting cleanup..."
         progress = 0
 
+        executeFilteredCleanup(items: filteredItems)
+    }
+
+    /// Execute cleanup for all items in plan (legacy method)
+    func executeCleanup() {
+        guard let plan = currentPlan else {
+            fullOptimize()
+            return
+        }
+        let allIds = Set(plan.items.map { $0.id })
+        executeCleanup(selectedIds: allIds)
+    }
+
+    /// Internal method to execute cleanup for filtered items
+    private func executeFilteredCleanup(items: [CleanupPlan.CleanupItem]) {
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
             var steps: [OptimizeResult.Step] = []
             var skipped: [OptimizeResult.SkippedItem] = []
-            let totalItems = max(plan.items.count, 1)
-            
-            print("[ComprehensiveOptimizer] Executing cleanup for \(plan.items.count) items")
+            let totalItems = max(items.count, 1)
 
-            // Execute each item with detailed progress
-            for (index, item) in plan.items.enumerated() {
+            print("[ComprehensiveOptimizer] Executing cleanup for \(items.count) selected items")
+
+            // Execute each selected item with detailed progress
+            for (index, item) in items.enumerated() {
                 let progressPct = Double(index) / Double(totalItems)
                 
                 // Show detailed status message
@@ -357,10 +383,15 @@ class ComprehensiveOptimizer: ObservableObject {
         }
     }
 
-    /// Skip confirmation and just run quietly
+    /// Skip confirmation and just run quietly - cleans all items in plan
     func executeWithoutConfirmation() {
+        guard let plan = currentPlan else {
+            fullOptimize()
+            return
+        }
+        let allIds = Set(plan.items.map { $0.id })
         needsConfirmation = false
-        executeCleanup()
+        executeCleanup(selectedIds: allIds)
     }
 
     /// Cancel pending confirmation
@@ -426,6 +457,12 @@ class ComprehensiveOptimizer: ObservableObject {
                 self.refreshMonitors()
             }
         }
+    }
+
+    /// Free RAM - simple quick cleanup for menu bar quick action
+    /// Calls cacheOnlyOptimize which is fast and doesn't need confirmation
+    func freeRAM() {
+        cacheOnlyOptimize()
     }
 
     // MARK: - Cache-Only Optimization (Fast, No Confirmation)
@@ -644,12 +681,13 @@ class ComprehensiveOptimizer: ObservableObject {
         // Package manager caches
         let devCachePaths: [(name: String, path: String)] = [
             ("npm cache", "~/.npm"),
-            ("Yarn cache", "~/.yarn/cache"),
+            ("Yarn cache", "~/Library/Caches/Yarn"),
             ("pnpm store", "~/Library/pnpm/store"),
             ("Bun cache", "~/.bun/install/cache"),
             ("pip cache", "~/Library/Caches/pip"),
+            ("Go module cache", "~/go/pkg/mod"),
             ("Go build cache", "~/Library/Caches/go-build"),
-            ("Cargo cache", "~/.cargo/registry/cache"),
+            ("Cargo registry", "~/.cargo/registry"),
             ("Gradle cache", "~/.gradle/caches"),
             ("TypeScript cache", "~/.cache/typescript"),
             ("Vite cache", "~/.vite/cache"),
@@ -714,10 +752,10 @@ class ComprehensiveOptimizer: ObservableObject {
                 sizeMB: archivesSize,
                 category: .developer,
                 path: "~/Library/Developer/Xcode/Archives",
-                isDestructive: true,
+                isDestructive: false, // NOT destructive - build artifacts can be rebuilt
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: "⚠️ Contains your app archives - review before deleting"
+                warningMessage: "Contains archived builds - delete only if you don't need them"
             ))
         }
         

@@ -12,6 +12,7 @@ struct SettingsView: View {
         case alerts = "Alerts"
         case display = "Display"
         case guard_ = "Guard"
+        case automation = "Automation"
         case permissions = "Permissions"
     }
 
@@ -75,6 +76,7 @@ struct SettingsView: View {
         case .alerts: AlertSettingsContent()
         case .display: DisplaySettingsContent()
         case .guard_: GuardSettingsContent()
+        case .automation: AutomationSettingsContent()
         case .permissions: PermissionsDiagnosticsView()
         }
     }
@@ -87,6 +89,7 @@ struct SettingsView: View {
         case .alerts: return "bell"
         case .display: return "paintbrush"
         case .guard_: return "shield"
+        case .automation: return "clock.badge.checkmark"
         case .permissions: return "lock.shield"
         }
     }
@@ -310,6 +313,182 @@ struct WhitelistPathChip: View {
             return "~/" + components.suffix(2).joined(separator: "/")
         }
         return path
+    }
+}
+
+// MARK: - Automation Settings
+
+struct AutomationSettingsContent: View {
+    @ObservedObject var settings = AppSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Automation").font(.title2.bold())
+
+            // Scheduled Cleanup
+            GroupBox("Scheduled Cleanup") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Enable daily cleanup", isOn: $settings.dailyCleanupEnabled)
+                        .help("Automatically run cleanup every day at the specified time")
+
+                    HStack {
+                        Text("Cleanup Time")
+                        Spacer()
+                        TimePicker(time: $settings.dailyCleanupTime)
+                            .disabled(!settings.dailyCleanupEnabled)
+                    }
+
+                    Divider()
+
+                    Toggle("Enable weekly security scan", isOn: $settings.weeklySecurityScanEnabled)
+                        .help("Automatically scan FileVault and Gatekeeper status weekly")
+
+                    HStack {
+                        Text("Scan Day")
+                        Spacer()
+                        Picker("", selection: $settings.weeklySecurityScanDay) {
+                            Text("Sunday").tag(1)
+                            Text("Monday").tag(2)
+                            Text("Tuesday").tag(3)
+                            Text("Wednesday").tag(4)
+                            Text("Thursday").tag(5)
+                            Text("Friday").tag(6)
+                            Text("Saturday").tag(7)
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
+                        .disabled(!settings.weeklySecurityScanEnabled)
+                    }
+                }
+                .padding(8)
+            }
+
+            // Smart Triggers
+            GroupBox("Smart Triggers") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Toggle("Battery trigger", isOn: $settings.batteryTriggerEnabled)
+                            .help("Run gentle cleanup when battery drops below threshold")
+                        Spacer()
+                        Text(String(format: "< %.0f%%", settings.batteryThreshold))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $settings.batteryThreshold, in: 10...50, step: 5)
+                        .disabled(!settings.batteryTriggerEnabled)
+
+                    HStack {
+                        Toggle("Memory trigger", isOn: $settings.memoryTriggerEnabled)
+                            .help("Run cleanup when memory usage exceeds threshold")
+                        Spacer()
+                        Text(String(format: "> %.0f%%", settings.memoryThreshold))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $settings.memoryThreshold, in: 50...95, step: 5)
+                        .disabled(!settings.memoryTriggerEnabled)
+
+                    Toggle("Thermal trigger", isOn: $settings.thermalTriggerEnabled)
+                        .help("Run aggressive cleanup when Mac overheats (serious/critical thermal state)")
+                        .padding(.top, 4)
+
+                    Text("Triggers have a 5-minute cooldown to prevent repeated executions")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(8)
+            }
+
+            // Quiet Hours
+            GroupBox("Quiet Hours") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Enable quiet hours", isOn: $settings.quietHoursEnabled)
+                        .help("Suppress non-critical notifications during specified hours")
+
+                    HStack {
+                        Text("From")
+                        TimePicker(time: $settings.quietHoursStart)
+                            .disabled(!settings.quietHoursEnabled)
+                        Text("To")
+                        TimePicker(time: $settings.quietHoursEnd)
+                            .disabled(!settings.quietHoursEnabled)
+                    }
+
+                    Toggle("Allow critical alerts during quiet hours", isOn: $settings.allowCriticalAlerts)
+                        .help("Critical alerts (thermal, memory > 95%%) will still fire")
+                        .padding(.top, 4)
+                }
+                .padding(8)
+            }
+
+            // Auto-cleanup Mode
+            GroupBox("Auto-cleanup") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Skip confirmation for small cleanups", isOn: $settings.autoCleanupEnabled)
+                        .help("Automatically execute cleanup without confirmation when under threshold")
+
+                    HStack {
+                        Text("Threshold")
+                        Spacer()
+                        Stepper(String(format: "%.0f MB", settings.autoCleanupThresholdMB),
+                                value: $settings.autoCleanupThresholdMB, in: 100...2000, step: 100)
+                            .frame(width: 150)
+                            .disabled(!settings.autoCleanupEnabled)
+                    }
+
+                    Text("Large cleanups will still require confirmation")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(8)
+            }
+        }
+    }
+}
+
+// Simple time picker for HH:MM selection
+struct TimePicker: View {
+    @Binding var time: String
+
+    var hour: Int {
+        Int(time.split(separator: ":").first ?? "0") ?? 0
+    }
+
+    var minute: Int {
+        Int(time.split(separator: ":").last ?? "0") ?? 0
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Picker("", selection: Binding(
+                get: { hour },
+                set: { newValue in
+                    time = String(format: "%02d:%02d", newValue, minute)
+                }
+            )) {
+                ForEach(0..<24, id: \.self) { hour in
+                    Text(String(format: "%02d", hour)).tag(hour)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 70)
+
+            Text(":")
+                .monospacedDigit()
+
+            Picker("", selection: Binding(
+                get: { minute },
+                set: { newValue in
+                    time = String(format: "%02d:%02d", hour, newValue)
+                }
+            )) {
+                ForEach(Array(stride(from: 0, to: 60, by: 5)), id: \.self) { minute in
+                    Text(String(format: "%02d", minute)).tag(minute)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 70)
+        }
     }
 }
 
@@ -537,11 +716,39 @@ struct GuardSettingsContent: View {
 
 struct StatsSettingsContent: View {
     @ObservedObject private var settings = AppSettings.shared
-    
+    @State private var selectedStatsTab: StatsTab = .triggerHistory
+
+    enum StatsTab: String, CaseIterable {
+        case triggerHistory = "Trigger History"
+        case largeFiles = "Large Files"
+        case privacyAudit = "Privacy Audit"
+        case cleanupStats = "Cleanup Stats"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Cleanup Stats
-            CleanupStatsView()
+            // Tab picker
+            Picker("View", selection: $selectedStatsTab) {
+                ForEach(StatsTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            // Content based on selection
+            switch selectedStatsTab {
+            case .triggerHistory:
+                TriggerHistoryView()
+                    .frame(minHeight: 300)
+            case .largeFiles:
+                LargeFileFinderView()
+                    .frame(minHeight: 400)
+            case .privacyAudit:
+                PrivacyAuditView()
+                    .frame(minHeight: 400)
+            case .cleanupStats:
+                CleanupStatsView()
+            }
         }
     }
 }

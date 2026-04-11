@@ -37,6 +37,12 @@ class SecurityScanner: ObservableObject {
     @Published var threatCount: Int = 0
     @Published var monitoringEnabled: Bool = true
     @Published var hasTCCAccess: Bool = false
+
+    // Security Status Checks (Phase 1: Foundation Hardening)
+    @Published var fileVaultEnabled: Bool = false
+    @Published var fileVaultStatus: String = "Checking..."
+    @Published var gatekeeperEnabled: Bool = false
+    @Published var gatekeeperStatus: String = "Checking..."
     
     // MARK: - Scan Phase
     
@@ -141,6 +147,8 @@ class SecurityScanner: ObservableObject {
         let isApple: Bool
         let isSuspicious: Bool
         let suspicionReason: String?
+        let isUnnecessary: Bool
+        let unnecessaryReason: String?
         let memoryImpactMB: Double
         let canDisable: Bool
         let modificationDate: Date?
@@ -243,6 +251,20 @@ class SecurityScanner: ObservableObject {
         "capture", "record", "inject", "hook", "intercept",
         "remote", "backdoor", "trojan", "rat", "keysniff",
         "screencapture", "screen_capture", "mousehook"
+    ]
+    
+    // Known unnecessary third-party daemons - not malware but consume resources
+    // These are update checkers, telemetry agents, or leftover installers
+    private let knownUnnecessaryDaemonPrefixes = [
+        "com.adobe.ARMDC",              // Adobe update checker
+        "com.adobe.AdobeGCClient",      // Adobe Genuine Client
+        "com.oracle.java",              // Oracle Java updater
+        "com.macpaw",                   // CleanMyMac agent
+        "com.google.GoogleUpdater",     // Google software updater
+        "com.google.Keystone",          // Google Keystone updater
+        "com.microsoft.update",         // Microsoft auto-update
+        "com.teamviewer.",              // TeamViewer (if not actively used)
+        "com.anydesk.",                 // AnyDesk (if not actively used)
     ]
     
     private init() {
@@ -551,7 +573,7 @@ class SecurityScanner: ObservableObject {
             DispatchQueue.main.async {
                 self.scanPhase = .complete
                 self.scanProgress = 1.0
-                
+
                 self.persistenceItems = allItems.sorted {
                     ($0.isSuspicious ? 0 : 1) < ($1.isSuspicious ? 0 : 1)
                 }
@@ -560,10 +582,13 @@ class SecurityScanner: ObservableObject {
                 self.overallRisk = overallRisk
                 self.lastScanDate = Date()
                 self.isScanning = false
-                
+
+                // Refresh security status checks (FileVault, Gatekeeper)
+                self.refreshSecurityStatus()
+
                 // Save baseline
                 self.saveBaseline(items: allItems)
-                
+
                 print("[SecurityScanner] Scan complete: \(allItems.count) items, \(warnings.count) warnings, risk: \(overallRisk.rawValue)")
             }
         }
@@ -622,7 +647,8 @@ class SecurityScanner: ObservableObject {
             
             let isApple = label.hasPrefix("com.apple.") || isSystem
             let isSuspicious = checkSuspicious(label: label, program: program)
-            
+            let (isUnnecessary, unnecessaryReason) = checkUnnecessaryDaemon(label: label)
+
             let item = PersistenceItem(
                 name: label,
                 path: fullPath,
@@ -632,6 +658,8 @@ class SecurityScanner: ObservableObject {
                 isApple: isApple,
                 isSuspicious: isSuspicious.0,
                 suspicionReason: isSuspicious.1,
+                isUnnecessary: isUnnecessary,
+                unnecessaryReason: unnecessaryReason,
                 memoryImpactMB: 0, // Skip slow memory check
                 canDisable: !isSystem && !isApple,
                 modificationDate: nil // Skip slow date check
@@ -666,7 +694,8 @@ class SecurityScanner: ObservableObject {
                 
                 let isApple = bundleID.hasPrefix("com.apple.")
                 let isSuspicious = checkSuspicious(label: bundleID, program: fullPath)
-                
+                let (isUnnecessary, unnecessaryReason) = checkUnnecessaryDaemon(label: bundleID)
+
                 let item = PersistenceItem(
                     name: file.replacingOccurrences(of: ".app", with: ""),
                     path: fullPath,
@@ -676,6 +705,8 @@ class SecurityScanner: ObservableObject {
                     isApple: isApple,
                     isSuspicious: isSuspicious.0,
                     suspicionReason: isSuspicious.1,
+                    isUnnecessary: isUnnecessary,
+                    unnecessaryReason: unnecessaryReason,
                     memoryImpactMB: 0,
                     canDisable: !isApple,
                     modificationDate: nil
@@ -820,10 +851,48 @@ class SecurityScanner: ObservableObject {
         // Only check if running from unusual locations or has suspicious keywords
         return (false, nil)
     }
-    
+
+    /// Check if a daemon/agent is known unnecessary bloat (update checkers, telemetry, leftover installers)
+    /// These are not malware but consume resources and can be safely removed
+    private func checkUnnecessaryDaemon(label: String) -> (Bool, String?) {
+        for prefix in knownUnnecessaryDaemonPrefixes {
+            if label.hasPrefix(prefix) {
+                let reason = unnecessaryReasonForPrefix(prefix, label: label)
+                return (true, reason)
+            }
+        }
+        return (false, nil)
+    }
+
+    private func unnecessaryReasonForPrefix(_ prefix: String, label: String) -> String {
+        switch prefix {
+        case "com.adobe.ARMDC":
+            return "Adobe update checker - remove if not using Adobe CC"
+        case "com.adobe.AdobeGCClient":
+            return "Adobe Genuine Client telemetry - remove if not using Adobe CC"
+        case "com.oracle.java":
+            return "Oracle Java updater - remove if not using Java"
+        case "com.macpaw":
+            return "CleanMyMac agent - redundant if using Pulse"
+        case "com.google.GoogleUpdater":
+            return "Google software updater - runs in background daily"
+        case "com.google.Keystone":
+            return "Google Keystone updater - runs in background daily"
+        case "com.microsoft.update":
+            return "Microsoft auto-update - runs in background periodically"
+        case "com.teamviewer.":
+            return "TeamViewer daemon - remove if not actively using remote access"
+        case "com.anydesk.":
+            return "AnyDesk daemon - remove if not actively using remote access"
+        default:
+            return "Known unnecessary third-party daemon"
+        }
+    }
+
     private func analyzeItems(_ items: [PersistenceItem]) -> [SecurityWarning] {
         var warnings: [SecurityWarning] = []
-        
+
+        // Warn about suspicious items
         for item in items where item.isSuspicious {
             warnings.append(SecurityWarning(
                 severity: item.isApple ? .low : .high,
@@ -833,7 +902,31 @@ class SecurityScanner: ObservableObject {
                 itemPath: item.path
             ))
         }
-        
+
+        // Warn about unnecessary third-party daemons (bloat, not malware)
+        let unnecessaryItems = items.filter { $0.isUnnecessary }
+        for item in unnecessaryItems {
+            warnings.append(SecurityWarning(
+                severity: .medium,
+                title: "Unnecessary Daemon",
+                detail: "\(item.name): \(item.unnecessaryReason ?? "Known unnecessary")",
+                recommendation: "Remove to free resources and reduce background activity",
+                itemPath: item.path
+            ))
+        }
+
+        // Warn if there are many unnecessary daemons in aggregate
+        if unnecessaryItems.count >= 3 {
+            let estimatedRAM = Double(unnecessaryItems.count) * 30.0
+            warnings.append(SecurityWarning(
+                severity: .medium,
+                title: "\(unnecessaryItems.count) Unnecessary Daemons Detected",
+                detail: "These consume ~\(Int(estimatedRAM)) MB RAM combined and run in background",
+                recommendation: "Review and remove unused software to improve performance",
+                itemPath: nil
+            ))
+        }
+
         let loginItemsCount = items.filter { $0.type == .loginItem && !$0.isApple }.count
         if loginItemsCount > 10 {
             warnings.append(SecurityWarning(
@@ -926,6 +1019,82 @@ class SecurityScanner: ObservableObject {
     func clearRecentThreats() {
         recentThreats.removeAll()
         threatCount = 0
+    }
+
+    // MARK: - Security Status Checks (Phase 1: Foundation Hardening)
+
+    /// Check FileVault disk encryption status using fdesetup
+    func checkFileVaultStatus() {
+        workQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/fdesetup")
+            task.arguments = ["isactive"]
+
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = Pipe()
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+
+                // Exit code 0 = FileVault is active, 1 = not active
+                let isEnabled = task.terminationStatus == 0
+
+                DispatchQueue.main.async {
+                    self.fileVaultEnabled = isEnabled
+                    self.fileVaultStatus = isEnabled ? "Enabled" : "Not Enabled"
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.fileVaultEnabled = false
+                    self.fileVaultStatus = "Unable to check"
+                }
+            }
+        }
+    }
+
+    /// Check Gatekeeper app verification status using spctl
+    func checkGatekeeperStatus() {
+        workQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/spctl")
+            task.arguments = ["--status"]
+
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = Pipe()
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                let isEnabled = output == "assess enabled"
+
+                DispatchQueue.main.async {
+                    self.gatekeeperEnabled = isEnabled
+                    self.gatekeeperStatus = isEnabled ? "Enabled" : "Disabled"
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.gatekeeperEnabled = false
+                    self.gatekeeperStatus = "Unable to check"
+                }
+            }
+        }
+    }
+
+    /// Refresh all security status checks
+    func refreshSecurityStatus() {
+        checkFileVaultStatus()
+        checkGatekeeperStatus()
     }
 }
 

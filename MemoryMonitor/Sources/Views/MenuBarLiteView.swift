@@ -16,26 +16,26 @@ struct MenuBarLiteView: View {
                 memoryPercent: memoryPercent,
                 cpuPercent: cpuPercent
             )
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            .padding(.top, DesignSystem.Spacing.lg)
+            .padding(.bottom, DesignSystem.Spacing.md)
 
             // Status sentence
             Text(statusSentence)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(DesignSystem.Typography.subheadline)
                 .foregroundColor(.primary)
-                .padding(.bottom, 2)
+                .padding(.bottom, DesignSystem.Spacing.xs)
 
             Text(String(format: "%.1f GB of %.0f GB", memoryUsedGB, memoryTotalGB))
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .font(DesignSystem.Typography.caption)
                 .foregroundColor(.secondary)
-                .padding(.bottom, 16)
+                .padding(.bottom, DesignSystem.Spacing.md)
 
             // Horizontal stats bar with icon + value pairs
             HStack {
                 StatBlock(icon: "memorychip", value: memoryValue, color: memoryColor)
                 StatBlock(icon: "externaldrive", value: String(format: "%.1f", devMonitor.swapUsedGB), color: swapColor)
                 StatBlock(icon: "cpu", value: cpuValue, color: cpuColor)
-                
+
                 // Only show temp if it's detected (>0)
                 if tempMonitor.maxTemperature > 0 {
                     StatBlock(icon: "thermometer", value: String(format: "%.0f°", tempMonitor.maxTemperature), color: Color.temperature(tempMonitor.maxTemperature))
@@ -43,7 +43,7 @@ struct MenuBarLiteView: View {
                     // Placeholder to maintain consistent layout
                     HStack(spacing: 2) {
                         Image(systemName: "thermometer")
-                            .font(.system(size: 12))
+                            .font(.system(size: DesignSystem.Icon.small))
                             .foregroundColor(.secondary)
                         Text("--°")
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -53,11 +53,14 @@ struct MenuBarLiteView: View {
                     .fixedSize()
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 14)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.bottom, DesignSystem.Spacing.md)
 
             // Optimize button — always visible, shimmer when working
             optimizeButton
+
+            // Stop Memory Hog button - shows top memory consumer
+            stopMemoryHogSection
 
             // Result banner
             if let result = manager.optimizer.lastResult,
@@ -111,111 +114,385 @@ struct MenuBarLiteView: View {
     }
     
     // MARK: - Confirmation Dialog Overlay (for Menu Bar)
-    
+
     private func ConfirmationDialogOverlay() -> some View {
         VStack {
             Spacer()
             ZStack {
-                // Background dimmer
-                Color.black.opacity(0.4)
+                Color.black.opacity(0.5)
                     .ignoresSafeArea()
-                
-                // Compact confirmation for menu bar context
-                VStack(spacing: 8) {
+
+                // Safety-enhanced confirmation dialog
+                VStack(spacing: 0) {
                     // Header
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.yellow)
-                        
-                        Text("Confirm Optimization")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                        
-                        Spacer()
-                    }
-                    .padding(12)
-                    
-                    // Summary of items to clean
-                    if let plan = manager.optimizer.pendingCleanupPlan {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(plan.itemCount) items")
-                                    .font(.system(size: 12, weight: .medium))
-                                Text(plan.totalSizeText)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            // Show categories if we want more detail
-                            LazyHStack(spacing: 8) {
-                                if plan.items.contains(where: { $0.category == .developer }) {
-                                    Label("Dev", systemImage: "terminal")
-                                        .font(.system(size: 10))
-                                        .labelStyle(.iconOnly)
-                                        .padding(4)
-                                        .background(Circle().fill(Color.purple.opacity(0.2)))
-                                }
-                                if plan.items.contains(where: { $0.category == .browser }) {
-                                    Label("Browser", systemImage: "globe")
-                                        .font(.system(size: 10))
-                                        .labelStyle(.iconOnly)
-                                        .padding(4)
-                                        .background(Circle().fill(Color.blue.opacity(0.2)))
-                                }
-                                if plan.items.contains(where: { $0.category == .system }) {
-                                    Label("System", systemImage: "desktopcomputer")
-                                        .font(.system(size: 10))
-                                        .labelStyle(.iconOnly)
-                                        .padding(4)
-                                        .background(Circle().fill(Color.green.opacity(0.2)))
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                    }
-                    
-                    // Note that full details available in dashboard
-                    Text("See full details in Dashboard")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                    
+                    headerSection
+
                     Divider()
-                        .padding(.vertical, 4)
-                    
-                    // Action buttons
-                    HStack(spacing: 8) {
-                        Button("Cancel") {
-                            manager.optimizer.cancelCleanup()
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.secondary)
-                        
-                        Spacer()
-                        
-                        Button("Clean \(manager.optimizer.pendingCleanupPlan?.totalSizeText ?? "")") {
-                            // Execute via main optimizer
-                            manager.optimizer.executeCleanup()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
+
+                    // Content - either itemized list or redirect warning
+                    if manager.optimizer.requiresReview {
+                        reviewRequiredSection
+                    } else {
+                        itemizedListSection
                     }
-                    .padding(12)
+
+                    Divider()
+
+                    // Action buttons
+                    actionButtons
                 }
-                .frame(maxWidth: 270) // Fit menu bar width
+                .frame(maxWidth: 320)
+                .frame(maxHeight: 380)
                 .background(Color(nsColor: .windowBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
             }
         }
-        .frame(maxHeight: 250)  // Reasonable height for menu overlay
     }
 
-    
+    // MARK: - Dialog Sections
+
+    private var headerSection: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "shield.checkered")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Review Cleanup Items")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+
+                if let plan = manager.optimizer.pendingCleanupPlan {
+                    Text("\(plan.itemCount) items · \(plan.totalSizeText)")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                if manager.optimizer.requiresExplicitConfirmation {
+                    Text("Large cleanup requires extra confirmation")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(14)
+    }
+
+    private var reviewRequiredSection: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(.orange)
+                .padding(.top, 20)
+
+            Text("Large Cleanup Detected")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+
+            Text("This cleanup is \(manager.optimizer.pendingCleanupPlan?.totalSizeText ?? "large"). For safety, please review in the Dashboard.")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+
+            Button {
+                manager.optimizer.cancelCleanup()
+                NavigationManager.shared.navigate(to: .dashboard)
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.right.circle.fill")
+                    Text("Open Dashboard")
+                }
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.accentColor.gradient)
+                .foregroundColor(.white)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+        }
+    }
+
+    private var itemizedListSection: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                // Safe to clean section only - MenuBarLite is for quick, safe operations
+                // Review/destructive items are only shown in the full Dashboard
+                if !manager.optimizer.safeItems.isEmpty {
+                    sectionHeader("Safe to Clean", icon: "checkmark.shield.fill", color: .green)
+
+                    ForEach(manager.optimizer.safeItems) { item in
+                        cleanupItemRow(item)
+                    }
+                }
+
+                // Show indicator if review items exist but aren't shown (for transparency)
+                if manager.optimizer.hasReviewItems {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 10))
+                        Text("More items available in Dashboard")
+                            .font(.system(size: 10, design: .rounded))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.secondary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private func sectionHeader(_ title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(color)
+
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(color)
+
+            Spacer()
+
+            Text(toggleLabel(for: title))
+                .font(.system(size: 10, design: .rounded))
+                .foregroundStyle(.secondary)
+                .onTapGesture {
+                    if title.contains("Safe") {
+                        manager.optimizer.selectAllSafe()
+                    } else {
+                        // For review items, don't auto-select
+                    }
+                }
+        }
+    }
+
+    private func toggleLabel(for section: String) -> String {
+        if section.contains("Safe") {
+            return "Select All"
+        }
+        return "Manual"
+    }
+
+    private func cleanupItemRow(_ item: ComprehensiveOptimizer.CleanupPlan.CleanupItem) -> some View {
+        let isSelected = manager.optimizer.selectedItemIds.contains(item.id)
+
+        return HStack(spacing: 10) {
+            // Checkbox
+            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                .font(.system(size: 14))
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                .onTapGesture {
+                    manager.optimizer.toggleSelection(item.id)
+                }
+
+            // Category icon
+            categoryIcon(for: item.category)
+                .font(.system(size: 12))
+                .frame(width: 16)
+
+            // Name and details
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.name)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+
+                if let appName = item.appName {
+                    Text("Requires \(appName) closed")
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.orange)
+                } else if let warning = item.warningMessage {
+                    Text(warning)
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            // Size
+            Text(formatSize(item.sizeMB))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(sizeColor(for: item.sizeMB))
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.02))
+        )
+    }
+
+    private func categoryIcon(for category: OptimizeResult.Category) -> some View {
+        let (icon, color): (String, Color) = {
+            switch category {
+            case .developer: return ("terminal.fill", .purple)
+            case .browser: return ("globe", .blue)
+            case .system: return ("gearshape.fill", .green)
+            case .application: return ("app.fill", .cyan)
+            case .memory: return ("memorychip", .orange)
+            case .disk: return ("externaldrive.fill", .red)
+            case .logs: return ("doc.text.fill", .yellow)
+            }
+        }()
+
+        return Image(systemName: icon)
+            .foregroundStyle(color)
+    }
+
+    private func formatSize(_ mb: Double) -> String {
+        if mb > 1024 {
+            return String(format: "%.1f GB", mb / 1024)
+        }
+        return String(format: "%.0f MB", mb)
+    }
+
+    private func sizeColor(for mb: Double) -> Color {
+        if mb > 10 * 1024 { return .red }
+        if mb > 5 * 1024 { return .orange }
+        return .secondary
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 10) {
+            Button("Cancel") {
+                manager.optimizer.cancelCleanup()
+            }
+            .buttonStyle(.bordered)
+            .tint(.secondary)
+
+            Spacer()
+
+            // Show selected count
+            if manager.optimizer.selectedTotalSizeMB > 0 {
+                Text("\(formatSize(manager.optimizer.selectedTotalSizeMB))")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                // Execute cleanup - will use selectedItemIds
+                manager.optimizer.showCleanupConfirmation = false
+                manager.optimizer.executeCleanup()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 10))
+                    Text("Clean Selected")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(manager.optimizer.requiresExplicitConfirmation ? .red : .green)
+            .disabled(manager.optimizer.selectedItemIds.isEmpty)
+        }
+        .padding(12)
+    }
+
+    // MARK: - Stop Memory Hog Section
+
+    @State private var showingStopConfirmation = false
+
+    private var stopMemoryHogSection: some View {
+        Group {
+            if let topProcess = manager.processMonitor.topProcesses.first {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Memory Hog")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(topProcess.name)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                        Text(String(format: "%.1f GB", topProcess.memoryGB))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.orange)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showingStopConfirmation = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                            Text("Stop")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.red.opacity(0.15))
+                        .foregroundStyle(.red)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .confirmationDialog("Stop \(topProcess.name)?", isPresented: $showingStopConfirmation) {
+                        Button("Stop Process", role: .destructive) {
+                            AutoKillManager.shared.killProcess(
+                                pid: topProcess.id,
+                                name: topProcess.name,
+                                reason: "Manual stop from menu bar",
+                                memoryGB: topProcess.memoryGB
+                            )
+                            HapticFeedback.medium()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("This will close \(topProcess.name) and free \(String(format: "%.1f", topProcess.memoryGB)) GB of memory.")
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+        }
+    }
+
     // MARK: - Optimize Button
-    
+
+    /// Computed property for contextual CTA text
+    private var contextualButtonText: String {
+        if manager.optimizer.isWorking {
+            return manager.optimizer.statusMessage.isEmpty ? "Working..." : manager.optimizer.statusMessage
+        }
+
+        // Show freed amount if we have a recent result (within last 10 seconds)
+        if let result = manager.optimizer.lastResult,
+           Date().timeIntervalSince(result.timestamp) < 10 {
+            return result.summary
+        }
+
+        // Show "Review Items" if there are review items present
+        if manager.optimizer.hasReviewItems {
+            return "Review Items"
+        }
+
+        // Show safe total size for quick clean (MenuBarLite only does safe items)
+        let safeSize = manager.optimizer.safeTotalSizeMB
+        if safeSize > 0 {
+            return "Free \(formatSize(safeSize))"
+        }
+
+        // Default to quick clean
+        return "Quick Clean"
+    }
+
+    /// Whether to show the right arrow (not showing during work or recent result)
+    private var showButtonArrow: Bool {
+        !manager.optimizer.isWorking &&
+        (manager.optimizer.lastResult == nil ||
+         Date().timeIntervalSince(manager.optimizer.lastResult?.timestamp ?? Date.distantPast) > 10)
+    }
+
     private var optimizeButton: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
             Button {
@@ -227,16 +504,21 @@ struct MenuBarLiteView: View {
                         ProgressView()
                             .controlSize(.small)
                             .tint(.white)
-                        Text(manager.optimizer.statusMessage.isEmpty ? "Optimizing..." : manager.optimizer.statusMessage)
+                        // Show current progress step
+                        Text(statusMessageForDisplay)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
                     } else {
                         Image(systemName: "sparkles")
                             .font(.system(size: DesignSystem.Icon.tiny, weight: .bold))
-                        Text("Optimize Now")
+                        Text(contextualButtonText)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 10, weight: .bold))
-                            .opacity(0.7)
+                            .lineLimit(1)
+                        if showButtonArrow {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 10, weight: .bold))
+                                .opacity(0.7)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -252,7 +534,7 @@ struct MenuBarLiteView: View {
             .shimmer(active: manager.optimizer.isWorking)
             .buttonStyle(.plain)
             .disabled(manager.optimizer.isWorking)
-            
+
             // Last updated timestamp
             if let lastUpdated = manager.systemMonitor.lastUpdated {
                 Text("Updated \(timeAgo(from: lastUpdated))")
@@ -262,6 +544,18 @@ struct MenuBarLiteView: View {
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.bottom, DesignSystem.Spacing.sm)
+    }
+
+    /// Status message cleaned up for display (remove emojis for menu bar)
+    private var statusMessageForDisplay: String {
+        let raw = manager.optimizer.statusMessage
+        // Clean up emoji prefixes for cleaner look in menu bar
+        return raw
+            .replacingOccurrences(of: "💻 ", with: "")
+            .replacingOccurrences(of: "🌐 ", with: "")
+            .replacingOccurrences(of: "⚙️ ", with: "")
+            .replacingOccurrences(of: "💾 ", with: "")
+            .replacingOccurrences(of: "🧠 ", with: "")
     }
     
     private func timeAgo(from date: Date) -> String {
@@ -273,29 +567,71 @@ struct MenuBarLiteView: View {
     }
     
     // MARK: - Result Banner
-    
+
     private func resultBanner(_ result: MemoryOptimizer.OptimizeResult) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
+            // Animated success checkmark
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: DesignSystem.Icon.medium, weight: .medium))
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
                 .symbolEffect(.bounce, value: result.timestamp)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Done")
+
+            VStack(alignment: .leading, spacing: 2) {
+                // Amount freed prominently
+                Text(result.totalFreedMB > 1024
+                     ? String(format: "%.1f GB freed", result.totalFreedMB / 1024)
+                     : String(format: "%.0f MB freed", result.totalFreedMB))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                Text(result.summary)
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.primary)
+
+                // Categories affected (if any)
+                if !result.steps.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(categoryIcons(from: result.steps), id: \.self) { icon in
+                            Image(systemName: icon)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        if result.successCount > 0 {
+                            Text("\(result.successCount) actions")
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             Spacer()
         }
         .padding(DesignSystem.Spacing.sm + 2)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium, style: .continuous)
-                .fill(Color.green.opacity(0.1))
+                .fill(.green.opacity(0.1))
         )
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.bottom, DesignSystem.Spacing.sm)
+    }
+
+    /// Extract category icons from steps
+    private func categoryIcons(from steps: [MemoryOptimizer.OptimizeResult.Step]) -> [String] {
+        var icons = Set<String>()
+        for step in steps where step.success {
+            if let category = step.category {
+                icons.insert(iconForCategory(category))
+            }
+        }
+        return Array(icons).prefix(3).map { $0 }
+    }
+
+    private func iconForCategory(_ category: MemoryOptimizer.OptimizeResult.Category) -> String {
+        switch category {
+        case .developer: return "chevron.left.forwardslash.chevron.right"
+        case .browser: return "globe"
+        case .application: return "app.fill"
+        case .system: return "gearshape.fill"
+        case .memory: return "memorychip"
+        case .disk: return "externaldrive.fill"
+        case .logs: return "doc.text.fill"
+        }
     }
     
     // MARK: - Issue Banner

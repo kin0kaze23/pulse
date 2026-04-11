@@ -51,8 +51,11 @@ struct SecurityView: View {
             
             // Persistence items
             if !scanner.isScanning {
+                securityStatusSection
+                    .staggeredEntrance(delay: 0.22)
+
                 persistenceItemsSection
-                    .staggeredEntrance(delay: 0.20)
+                    .staggeredEntrance(delay: 0.25)
             }
         }
         .padding(DesignSystem.Spacing.lg)
@@ -509,6 +512,107 @@ struct SecurityView: View {
         )
     }
     
+    // MARK: - Security Status (FileVault + Gatekeeper) - Phase 1
+
+    private var securityStatusSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack {
+                Text("Security Status")
+                    .font(.system(.headline, design: .rounded))
+
+                Spacer()
+
+                // Refresh button
+                Button {
+                    scanner.refreshSecurityStatus()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+            }
+
+            // FileVault Status
+            securityStatusRow(
+                title: "FileVault Disk Encryption",
+                isEnabled: scanner.fileVaultEnabled,
+                statusText: scanner.fileVaultStatus,
+                icon: "lock.fill",
+                enabledColor: .green,
+                disabledColor: .orange,
+                actionText: scanner.fileVaultEnabled ? nil : "Open Security Settings",
+                action: {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.FileVaultPref") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            )
+
+            // Gatekeeper Status
+            securityStatusRow(
+                title: "Gatekeeper App Verification",
+                isEnabled: scanner.gatekeeperEnabled,
+                statusText: scanner.gatekeeperStatus,
+                icon: "shield.fill",
+                enabledColor: .green,
+                disabledColor: .orange,
+                actionText: scanner.gatekeeperEnabled ? nil : "Open Security Settings",
+                action: {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            )
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(.ultraThinMaterial)
+        )
+    }
+
+    private func securityStatusRow(
+        title: String,
+        isEnabled: Bool,
+        statusText: String,
+        icon: String,
+        enabledColor: Color,
+        disabledColor: Color,
+        actionText: String?,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(isEnabled ? enabledColor : disabledColor)
+                .frame(width: 40)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                Text(statusText)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundColor(isEnabled ? enabledColor : disabledColor)
+            }
+
+            Spacer()
+
+            if let actionText = actionText {
+                Button(action: action) {
+                    Text(actionText)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(enabledColor)
+                    .font(.title3)
+            }
+        }
+        .padding(.vertical, DesignSystem.Spacing.sm)
+    }
+
     // MARK: - Persistence Items
 
     private var persistenceItemsSection: some View {
@@ -765,33 +869,37 @@ struct ThreatEventRow: View {
 struct PersistenceItemRow: View {
     let item: SecurityScanner.PersistenceItem
     let onDisable: () -> Void
-    
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             // Status indicator
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .lineLimit(1)
-                
+
                 if let reason = item.suspicionReason {
                     Text(reason)
                         .font(.system(size: 9))
                         .foregroundColor(.orange)
+                } else if let reason = item.unnecessaryReason {
+                    Text(reason)
+                        .font(.system(size: 9))
+                        .foregroundColor(.yellow)
                 } else if item.memoryImpactMB > 0 {
                     Text(String(format: "%.0f MB active", item.memoryImpactMB))
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             Spacer()
-            
-            // Apple badge
+
+            // Badges: Apple (gray), Unnecessary (yellow), or disable button
             if item.isApple {
                 Text("Apple")
                     .font(.system(size: 9, weight: .medium))
@@ -799,6 +907,14 @@ struct PersistenceItemRow: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.secondary.opacity(0.1))
+                    .clipShape(Capsule())
+            } else if item.isUnnecessary {
+                Text("Unnecessary")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.yellow)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.yellow.opacity(0.15))
                     .clipShape(Capsule())
             } else if item.canDisable {
                 Button {
@@ -815,15 +931,22 @@ struct PersistenceItemRow: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(item.isSuspicious ? Color.orange.opacity(0.05) : Color.clear)
+                .fill(rowBackgroundColor)
         )
     }
-    
+
     private var statusColor: Color {
         if item.isSuspicious { return .orange }
+        if item.isUnnecessary { return .yellow }
         if item.isApple { return .green }
         if item.memoryImpactMB > 100 { return .yellow }
         return .blue
+    }
+
+    private var rowBackgroundColor: Color {
+        if item.isSuspicious { return Color.orange.opacity(0.05) }
+        if item.isUnnecessary { return Color.yellow.opacity(0.03) }
+        return Color.clear
     }
 }
 

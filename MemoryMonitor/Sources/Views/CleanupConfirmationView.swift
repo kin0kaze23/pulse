@@ -129,19 +129,35 @@ struct CleanupConfirmationView: View {
             
             Spacer()
             
-            // Destructive warning indicator
-            if let plan = optimizer.pendingCleanupPlan, plan.items.contains(where: { $0.isDestructive }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.caption)
-                    Text("Contains destructive operations")
-                        .font(.system(size: 10, weight: .medium))
+            // Destructive warning indicator - specifically list which items
+            if let plan = optimizer.pendingCleanupPlan {
+                let destructiveItems = plan.items.filter { $0.isDestructive }
+                if !destructiveItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.caption)
+                            Text("Review before cleaning:")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+
+                        ForEach(destructiveItems) { item in
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(Color.orange)
+                                    .frame(width: 4, height: 4)
+                                Text(item.name)
+                                    .font(.system(size: 9, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-                .foregroundColor(.orange)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(Capsule())
             }
             
             // Confirm

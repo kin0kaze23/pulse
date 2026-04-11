@@ -18,6 +18,14 @@ class MemoryMonitorManager: ObservableObject {
     let devMonitor = DeveloperMonitor.shared
     let devProfilesEngine = DeveloperProfilesEngine.shared
 
+    // Phase 2 Automation Services
+    let automationScheduler = AutomationScheduler.shared
+    let smartTriggerMonitor = SmartTriggerMonitor.shared
+    let quietHoursManager = QuietHoursManager.shared
+
+    // Disk Space Guardian
+    let diskSpaceGuardian = DiskSpaceGuardian.shared
+
     private var cancellables = Set<AnyCancellable>()
     private var processRefreshTimer: Timer?
     private var healthTimer: Timer?
@@ -129,6 +137,11 @@ class MemoryMonitorManager: ObservableObject {
             self?.diskMonitor.refresh()
         }
 
+        // Disk Space Guardian (monitors AI/Docker caches and low disk space)
+        if settings.diskSpaceGuardianEnabled {
+            diskSpaceGuardian.startMonitoring(interval: 300) // 5 minutes
+        }
+
         // Alert checks and health score recalculation on metric changes
         // Memory changes
         systemMonitor.$currentMemory
@@ -168,6 +181,11 @@ class MemoryMonitorManager: ObservableObject {
         autoKillManager.autoKillCPUThresholdPercent = settings.autoKillCPUPercent
         autoKillManager.warningBeforeKill = settings.autoKillWarningFirst
 
+        // Phase 2: Start automation services
+        automationScheduler.startMonitoring()
+        smartTriggerMonitor.startMonitoring()
+        quietHoursManager.startMonitoring()
+
         // Initial health score calculation
         healthScoreService.calculateScore()
     }
@@ -183,6 +201,11 @@ class MemoryMonitorManager: ObservableObject {
         cpuTimer = nil
         cycleCountTimer?.invalidate()
         cycleCountTimer = nil
+
+        // Phase 2: Stop automation services
+        automationScheduler.cancelAllScheduledJobs()
+        smartTriggerMonitor.stopMonitoring()
+        quietHoursManager.stopMonitoring()
     }
 
     // MARK: - Quick Actions

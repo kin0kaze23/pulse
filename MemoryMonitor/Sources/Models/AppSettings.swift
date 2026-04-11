@@ -120,6 +120,31 @@ class AppSettings: ObservableObject {
     @Published var cleanXcodeDerivedData: Bool {
         didSet { UserDefaults.standard.set(cleanXcodeDerivedData, forKey: "cleanXcodeDerivedData") }
     }
+
+    // MARK: - Disk Space Guardian Settings
+    /// Enable Disk Space Guardian monitoring and alerts
+    @Published var diskSpaceGuardianEnabled: Bool {
+        didSet { UserDefaults.standard.set(diskSpaceGuardianEnabled, forKey: "diskSpaceGuardianEnabled") }
+    }
+
+    /// Warning threshold in GB (triggers alert when free space below this)
+    @Published var diskWarningThresholdGB: Double {
+        didSet { UserDefaults.standard.set(diskWarningThresholdGB, forKey: "diskWarningThresholdGB") }
+    }
+
+    /// Critical threshold in GB (triggers auto-cleanup when free space below this)
+    @Published var diskCriticalThresholdGB: Double {
+        didSet { UserDefaults.standard.set(diskCriticalThresholdGB, forKey: "diskCriticalThresholdGB") }
+    }
+
+    /// Enable automatic cleanup when disk space is critically low
+    @Published var autoCleanupOnCriticalDisk: Bool {
+        didSet { UserDefaults.standard.set(autoCleanupOnCriticalDisk, forKey: "autoCleanupOnCriticalDisk") }
+    }
+
+    @Published var autoCleanupThresholdGB: Double {
+        didSet { UserDefaults.standard.set(autoCleanupThresholdGB, forKey: "autoCleanupThresholdGB") }
+    }
     
     /// Clean old Xcode iOS device support files for versions no longer in active development
     /// Helps keep your development environment lean
@@ -144,6 +169,68 @@ class AppSettings: ObservableObject {
 
     @Published var autoCleanupOnCriticalMemory: Bool {
         didSet { UserDefaults.standard.set(autoCleanupOnCriticalMemory, forKey: "autoCleanupOnCriticalMemory") }
+    }
+
+    // MARK: - Phase 2 Automation Settings
+
+    // AutomationScheduler
+    @Published var dailyCleanupEnabled: Bool {
+        didSet { UserDefaults.standard.set(dailyCleanupEnabled, forKey: "automation.dailyCleanupEnabled") }
+    }
+
+    @Published var dailyCleanupTime: String {
+        didSet { UserDefaults.standard.set(dailyCleanupTime, forKey: "automation.dailyCleanupTime") }
+    }
+
+    @Published var weeklySecurityScanEnabled: Bool {
+        didSet { UserDefaults.standard.set(weeklySecurityScanEnabled, forKey: "automation.weeklySecurityScanEnabled") }
+    }
+
+    @Published var weeklySecurityScanDay: Int {
+        didSet { UserDefaults.standard.set(weeklySecurityScanDay, forKey: "automation.weeklySecurityScanDay") }
+    }
+
+    // SmartTriggerMonitor
+    @Published var batteryTriggerEnabled: Bool {
+        didSet { UserDefaults.standard.set(batteryTriggerEnabled, forKey: "automation.batteryTriggerEnabled") }
+    }
+
+    @Published var batteryThreshold: Double {
+        didSet { UserDefaults.standard.set(batteryThreshold, forKey: "automation.batteryThreshold") }
+    }
+
+    @Published var memoryTriggerEnabled: Bool {
+        didSet { UserDefaults.standard.set(memoryTriggerEnabled, forKey: "automation.memoryTriggerEnabled") }
+    }
+
+    @Published var memoryThreshold: Double {
+        didSet { UserDefaults.standard.set(memoryThreshold, forKey: "automation.memoryThreshold") }
+    }
+
+    @Published var thermalTriggerEnabled: Bool {
+        didSet { UserDefaults.standard.set(thermalTriggerEnabled, forKey: "automation.thermalTriggerEnabled") }
+    }
+
+    // QuietHoursManager
+    @Published var quietHoursEnabled: Bool {
+        didSet { UserDefaults.standard.set(quietHoursEnabled, forKey: "automation.quietHoursEnabled") }
+    }
+
+    @Published var quietHoursStart: String {
+        didSet { UserDefaults.standard.set(quietHoursStart, forKey: "automation.quietHoursStart") }
+    }
+
+    @Published var quietHoursEnd: String {
+        didSet { UserDefaults.standard.set(quietHoursEnd, forKey: "automation.quietHoursEnd") }
+    }
+
+    @Published var allowCriticalAlerts: Bool {
+        didSet { UserDefaults.standard.set(allowCriticalAlerts, forKey: "automation.allowCriticalAlerts") }
+    }
+
+    // Auto-cleanup Mode (confirmation bypass)
+    @Published var autoCleanupThresholdMB: Double {
+        didSet { UserDefaults.standard.set(autoCleanupThresholdMB, forKey: "automation.autoCleanupThresholdMB") }
     }
 
     // MARK: - Cleanup History
@@ -221,10 +308,36 @@ class AppSettings: ObservableObject {
         self.cleanXcodeDeviceSupport = UserDefaults.standard.object(forKey: "cleanXcodeDeviceSupport") as? Bool ?? false
         self.whitelistedPaths = UserDefaults.standard.stringArray(forKey: "whitelistedPaths") ?? []
 
+        // Load Disk Space Guardian settings
+        self.diskSpaceGuardianEnabled = UserDefaults.standard.object(forKey: "diskSpaceGuardianEnabled") as? Bool ?? true
+        self.diskWarningThresholdGB = UserDefaults.standard.object(forKey: "diskWarningThresholdGB") as? Double ?? 20.0
+        self.diskCriticalThresholdGB = UserDefaults.standard.object(forKey: "diskCriticalThresholdGB") as? Double ?? 10.0
+        self.autoCleanupOnCriticalDisk = UserDefaults.standard.object(forKey: "autoCleanupOnCriticalDisk") as? Bool ?? true
+        self.autoCleanupThresholdGB = UserDefaults.standard.object(forKey: "autoCleanupThresholdGB") as? Double ?? 5.0
+
         // Load auto-cleanup settings
         self.autoCleanupEnabled = UserDefaults.standard.object(forKey: "autoCleanupEnabled") as? Bool ?? false
         self.autoCleanupIntervalHours = UserDefaults.standard.object(forKey: "autoCleanupIntervalHours") as? Int ?? 24
         self.autoCleanupOnCriticalMemory = UserDefaults.standard.object(forKey: "autoCleanupOnCriticalMemory") as? Bool ?? true
+
+        // Load Phase 2 automation settings
+        self.dailyCleanupEnabled = UserDefaults.standard.object(forKey: "automation.dailyCleanupEnabled") as? Bool ?? false
+        self.dailyCleanupTime = UserDefaults.standard.string(forKey: "automation.dailyCleanupTime") ?? "03:00"
+        self.weeklySecurityScanEnabled = UserDefaults.standard.object(forKey: "automation.weeklySecurityScanEnabled") as? Bool ?? false
+        self.weeklySecurityScanDay = UserDefaults.standard.object(forKey: "automation.weeklySecurityScanDay") as? Int ?? 1 // Sunday
+
+        self.batteryTriggerEnabled = UserDefaults.standard.object(forKey: "automation.batteryTriggerEnabled") as? Bool ?? true
+        self.batteryThreshold = UserDefaults.standard.object(forKey: "automation.batteryThreshold") as? Double ?? 30.0
+        self.memoryTriggerEnabled = UserDefaults.standard.object(forKey: "automation.memoryTriggerEnabled") as? Bool ?? true
+        self.memoryThreshold = UserDefaults.standard.object(forKey: "automation.memoryThreshold") as? Double ?? 80.0
+        self.thermalTriggerEnabled = UserDefaults.standard.object(forKey: "automation.thermalTriggerEnabled") as? Bool ?? true
+
+        self.quietHoursEnabled = UserDefaults.standard.object(forKey: "automation.quietHoursEnabled") as? Bool ?? false
+        self.quietHoursStart = UserDefaults.standard.string(forKey: "automation.quietHoursStart") ?? "22:00"
+        self.quietHoursEnd = UserDefaults.standard.string(forKey: "automation.quietHoursEnd") ?? "08:00"
+        self.allowCriticalAlerts = UserDefaults.standard.object(forKey: "automation.allowCriticalAlerts") as? Bool ?? true
+
+        self.autoCleanupThresholdMB = UserDefaults.standard.object(forKey: "automation.autoCleanupThresholdMB") as? Double ?? 500.0
 
         // Load cleanup history
         self.totalFreedMB = UserDefaults.standard.object(forKey: "totalFreedMB") as? Double ?? 0
@@ -293,5 +406,33 @@ class AppSettings: ObservableObject {
         if launchAtLogin != actualStatus {
             launchAtLogin = actualStatus
         }
+    }
+
+    // MARK: - Test Helpers
+
+    /// Reset all automation-related settings to default values
+    /// Call this in test tearDown to ensure test isolation
+    func resetAutomationSettingsToDefaults() {
+        // AutomationScheduler settings
+        dailyCleanupEnabled = false
+        dailyCleanupTime = "03:00"
+        weeklySecurityScanEnabled = false
+        weeklySecurityScanDay = 1 // Sunday
+
+        // SmartTriggerMonitor settings
+        batteryTriggerEnabled = true
+        batteryThreshold = 30.0
+        memoryTriggerEnabled = true
+        memoryThreshold = 80.0
+        thermalTriggerEnabled = true
+
+        // QuietHoursManager settings
+        quietHoursEnabled = false
+        quietHoursStart = "22:00"
+        quietHoursEnd = "08:00"
+        allowCriticalAlerts = true
+
+        // Auto-cleanup threshold
+        autoCleanupThresholdMB = 500.0
     }
 }

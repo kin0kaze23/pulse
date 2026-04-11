@@ -190,7 +190,7 @@ struct DashboardView: View {
 
             Spacer()
 
-            // Optimize button — premium style
+            // Optimize button — contextual style
             Button {
                 HapticFeedback.medium()
                 manager.freeRAM()
@@ -199,15 +199,22 @@ struct DashboardView: View {
                     HStack(spacing: 6) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Optimizing...")
+                        Text(dashboardStatusMessage)
                             .font(DesignSystem.Typography.caption)
+                            .lineLimit(1)
                     }
                 } else {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 10, weight: .semibold))
-                        Text("Optimize")
+                        Text(dashboardButtonText)
                             .font(DesignSystem.Typography.caption)
+                            .lineLimit(1)
+                        if showDashboardArrow {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .opacity(0.7)
+                        }
                     }
                 }
             }
@@ -265,6 +272,45 @@ struct DashboardView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
+    }
+
+    // MARK: - Contextual CTA Properties
+
+    private var dashboardButtonText: String {
+        if manager.optimizer.isWorking {
+            return dashboardStatusMessage
+        }
+
+        // Show freed amount if we have a recent result (within last 10 seconds)
+        if let result = manager.optimizer.lastResult,
+           Date().timeIntervalSince(result.timestamp) < 10 {
+            return result.summary
+        }
+
+        // Show pending plan size if available
+        if let plan = manager.optimizer.pendingCleanupPlan {
+            return "Free \(plan.totalSizeText)"
+        }
+
+        // Default to quick clean
+        return "Quick Clean"
+    }
+
+    private var dashboardStatusMessage: String {
+        let raw = manager.optimizer.statusMessage
+        // Clean up emoji prefixes for cleaner look
+        return raw
+            .replacingOccurrences(of: "💻 ", with: "")
+            .replacingOccurrences(of: "🌐 ", with: "")
+            .replacingOccurrences(of: "⚙️ ", with: "")
+            .replacingOccurrences(of: "💾 ", with: "")
+            .replacingOccurrences(of: "🧠 ", with: "")
+    }
+
+    private var showDashboardArrow: Bool {
+        !manager.optimizer.isWorking &&
+        (manager.optimizer.lastResult == nil ||
+         Date().timeIntervalSince(manager.optimizer.lastResult?.timestamp ?? Date.distantPast) > 10)
     }
 
     // MARK: - Sidebar
