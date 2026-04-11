@@ -246,8 +246,10 @@ class ComprehensiveOptimizer: ObservableObject {
     /// - Parameter selectedIds: Set of item IDs to actually clean
     func executeCleanup(selectedIds: Set<UUID>) {
         guard !isWorking, let plan = currentPlan else {
-            // No plan, run full optimization
-            fullOptimize()
+            // SAFETY FIX (Phase 1): No longer auto-execute fullOptimize without confirmation.
+            // Instead, scan first and present a plan for user confirmation.
+            statusMessage = "Scanning... a plan will be presented for your confirmation"
+            scanForCleanup()
             return
         }
 
@@ -271,9 +273,12 @@ class ComprehensiveOptimizer: ObservableObject {
     }
 
     /// Execute cleanup for all items in plan (legacy method)
+    /// SAFETY FIX (Phase 1): If no plan exists, scans first instead of blindly executing fullOptimize
     func executeCleanup() {
         guard let plan = currentPlan else {
-            fullOptimize()
+            // SAFETY FIX: Scan first, present plan for confirmation
+            statusMessage = "Scanning... a plan will be presented for your confirmation"
+            scanForCleanup()
             return
         }
         let allIds = Set(plan.items.map { $0.id })
@@ -383,15 +388,10 @@ class ComprehensiveOptimizer: ObservableObject {
         }
     }
 
-    /// Skip confirmation and just run quietly - cleans all items in plan
+    /// SAFETY FIX (Phase 1): No longer bypasses confirmation for destructive operations.
+    /// Instead, runs quickOptimize which only closes idle apps and flushes DNS (no file deletion).
     func executeWithoutConfirmation() {
-        guard let plan = currentPlan else {
-            fullOptimize()
-            return
-        }
-        let allIds = Set(plan.items.map { $0.id })
-        needsConfirmation = false
-        executeCleanup(selectedIds: allIds)
+        quickOptimize()
     }
 
     /// Cancel pending confirmation
@@ -586,91 +586,13 @@ class ComprehensiveOptimizer: ObservableObject {
 
     // MARK: - Full Optimization
 
+    /// SAFETY FIX (Phase 1): This method no longer auto-executes deletions.
+    /// It now scans for cleanup candidates and presents a plan requiring user confirmation.
+    /// The old behavior of directly deleting files without confirmation has been removed.
+    @available(*, deprecated, message: "Use scanForCleanup() followed by executeCleanup(selectedIds:) for safe, confirmed cleanup")
     private func fullOptimize() {
-        guard !isWorking else { return }
-        isWorking = true
-        progress = 0
-        lastResult = nil
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            var steps: [OptimizeResult.Step] = []
-
-            // Phase 1: Developer Caches
-            DispatchQueue.main.async { self.statusMessage = "Scanning developer caches..."; self.progress = 0.05 }
-            let devItems = self.scanDeveloperCaches()
-            
-            for (index, item) in devItems.enumerated() {
-                DispatchQueue.main.async { 
-                    self.statusMessage = "💻 Cleaning \(item.name)..."
-                    self.progress = 0.05 + (0.2 * Double(index) / Double(max(devItems.count, 1)))
-                }
-                Thread.sleep(forTimeInterval: 0.1)
-                let freed = self.executeCleanupItem(item)
-                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
-            }
-
-            // Phase 2: Browser Caches
-            DispatchQueue.main.async { self.statusMessage = "Scanning browser caches..."; self.progress = 0.25 }
-            let browserItems = self.scanBrowserCaches()
-            
-            for (index, item) in browserItems.enumerated() {
-                DispatchQueue.main.async { 
-                    self.statusMessage = "🌐 Cleaning \(item.name)..."
-                    self.progress = 0.25 + (0.15 * Double(index) / Double(max(browserItems.count, 1)))
-                }
-                Thread.sleep(forTimeInterval: 0.1)
-                let freed = self.executeCleanupItem(item)
-                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
-            }
-
-            // Phase 3: System Caches
-            DispatchQueue.main.async { self.statusMessage = "⚙️ Cleaning system caches..."; self.progress = 0.4 }
-            let sysItems = self.scanSystemCaches()
-            
-            for (index, item) in sysItems.enumerated() {
-                DispatchQueue.main.async { 
-                    self.statusMessage = "⚙️ Cleaning \(item.name)..."
-                    self.progress = 0.4 + (0.1 * Double(index) / Double(max(sysItems.count, 1)))
-                }
-                Thread.sleep(forTimeInterval: 0.1)
-                let freed = self.executeCleanupItem(item)
-                steps.append(.init(name: item.name, freedMB: freed, success: freed >= 0, category: item.category))
-            }
-
-            // Phase 4: Trash
-            DispatchQueue.main.async { self.statusMessage = "💾 Emptying trash..."; self.progress = 0.5 }
-            Thread.sleep(forTimeInterval: 0.2)
-            let trashFreed = self.executeTrashEmpty()
-            if trashFreed > 0 {
-                steps.append(.init(name: "Emptied trash", freedMB: trashFreed, success: true, category: .disk))
-            }
-
-            // Phase 5: Memory - Close idle apps
-            DispatchQueue.main.async { self.statusMessage = "🧠 Closing idle apps..."; self.progress = 0.7 }
-            Thread.sleep(forTimeInterval: 0.2)
-            let idleFreed = self.closeIdleApps()
-            if idleFreed.0 > 0 {
-                steps.append(.init(name: "Closed \(idleFreed.1) idle apps", freedMB: idleFreed.0, success: true, category: .memory))
-            }
-
-            // Phase 6: Final DNS flush
-            DispatchQueue.main.async { self.statusMessage = "🌐 Flushing DNS..."; self.progress = 0.9 }
-            Thread.sleep(forTimeInterval: 0.2)
-            self.flushDNS()
-            steps.append(.init(name: "DNS cache flushed", freedMB: 0, success: true, category: .system))
-
-            let totalFreed = steps.reduce(0) { $0 + max(0, $1.freedMB) }
-            let result = OptimizeResult(steps: steps, skipped: [], totalFreedMB: totalFreed, timestamp: Date())
-
-            DispatchQueue.main.async {
-                self.lastResult = result
-                self.statusMessage = ""
-                self.progress = 1.0
-                self.isWorking = false
-                self.refreshMonitors()
-            }
-        }
+        // Redirect to the safe flow: scan first, then require confirmation
+        scanForCleanup()
     }
 
     // MARK: - Scanner Methods (Dry-Run)
@@ -1068,20 +990,9 @@ class ComprehensiveOptimizer: ObservableObject {
             ))
         }
         
-        // Mail downloads
-        let mailSize = fastDirectorySizeMB("~/Library/Mail")
-        if mailSize > 50 {
-            items.append(.init(
-                name: "Mail downloads",
-                sizeMB: mailSize,
-                category: .system,
-                path: "~/Library/Mail",
-                isDestructive: false,
-                requiresAppClosed: true,
-                appName: "Mail",
-                warningMessage: "Close Mail to clean safely"
-            ))
-        }
+        // SAFETY FIX (Phase 1): ~/Library/Mail removed from cleanup targets.
+        // It contains actual email data, not just caches. Deleting it could destroy user emails.
+        // See DodoTidy lesson: imprecise matching of app data can cause data loss.
 
         return items
     }
@@ -1185,27 +1096,22 @@ class ComprehensiveOptimizer: ObservableObject {
                 return 0
             }
 
-            // SAFETY CHECK 6: Use Trash for user data, permanent delete for caches
-            // Caches regenerate automatically, so permanent delete is acceptable
-            // User data (Downloads, Logs, etc.) goes to Trash for recovery
-            let isCachePath = path.contains("Caches") || path.contains("cache") || 
+            // SAFETY FIX (Phase 1): ALL deletions now go to Trash for recovery.
+            // Previously, caches were permanently deleted with no recovery path.
+            // This follows DodoTidy's safety approach: always use trashItem() for user safety.
+            let url = URL(fileURLWithPath: expandedPath)
+            var trashURL: NSURL?
+            try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
+
+            // For cache directories, recreate the empty folder to prevent app crashes.
+            // Caches like ~/Library/Caches/com.apple.Safari expect the directory to exist.
+            let isCachePath = path.contains("Caches") || path.contains("cache") ||
                               path.contains("DerivedData") || path.contains("node_modules")
-            
             if isCachePath {
-                // Permanent delete for caches (they regenerate)
-                try FileManager.default.removeItem(atPath: expandedPath)
-                
-                // Recreate empty directory for caches (prevents app crashes)
                 try? FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true)
-                
-                print("[ComprehensiveOptimizer] Permanently deleted cache: \(expandedPath) (\(size)MB)")
-            } else {
-                // Move to Trash for user data (recoverable)
-                let url = URL(fileURLWithPath: expandedPath)
-                var trashURL: NSURL?
-                try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
-                print("[ComprehensiveOptimizer] Moved to Trash: \(expandedPath) (\(size)MB), trash location: \(trashURL?.path ?? "unknown")")
             }
+
+            print("[ComprehensiveOptimizer] Moved to Trash: \(expandedPath) (\(size)MB), trash location: \(trashURL?.path ?? "unknown")")
 
             print("[ComprehensiveOptimizer] Successfully cleaned: \(expandedPath) (\(size)MB)")
             return size

@@ -45,15 +45,19 @@ final class SafetyFeaturesTests: XCTestCase {
     
     func testUserHomeProtection() {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        
+
         // Home directory itself should be protected
         XCTAssertFalse(TestSafetyHelpers.isPathSafeToDelete(homeDir))
-        
-        // Documents and Desktop should be protected
+
+        // Documents, Desktop, and Downloads folders should be protected
         XCTAssertFalse(TestSafetyHelpers.isPathSafeToDelete(homeDir + "/Documents"))
         XCTAssertFalse(TestSafetyHelpers.isPathSafeToDelete(homeDir + "/Desktop"))
-        
-        // But Caches should be allowed
+        XCTAssertFalse(TestSafetyHelpers.isPathSafeToDelete(homeDir + "/Downloads"))
+
+        // But individual files inside Downloads can be cleaned
+        XCTAssertTrue(TestSafetyHelpers.isPathSafeToDelete(homeDir + "/Downloads/old-file.dmg"))
+
+        // Caches should be allowed
         XCTAssertTrue(TestSafetyHelpers.isPathSafeToDelete(homeDir + "/Library/Caches"))
     }
     
@@ -209,7 +213,12 @@ enum TestSafetyHelpers {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         if path == homeDir ||
            path.hasPrefix(homeDir + "/Documents") ||
-           path.hasPrefix(homeDir + "/Desktop") {
+           path.hasPrefix(homeDir + "/Desktop") ||
+           path.hasPrefix(homeDir + "/Downloads") {
+            // Exception: individual files inside Downloads can be cleaned, but not the folder itself
+            if path.hasPrefix(homeDir + "/Downloads") && path != homeDir + "/Downloads" {
+                return true
+            }
             return false
         }
 

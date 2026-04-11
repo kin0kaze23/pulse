@@ -378,8 +378,10 @@ class DiskSpaceGuardian: ObservableObject {
     }
 
     private func runGeneralCleanup() async -> Double {
-        // Use ComprehensiveOptimizer for general cleanup
-        ComprehensiveOptimizer.shared.executeCleanup()
+        // SAFETY FIX (Phase 1): No longer calls executeCleanup() which could trigger
+        // destructive operations without user confirmation. Uses quickOptimize() instead
+        // which only closes idle apps and flushes DNS -- safe for automated background execution.
+        ComprehensiveOptimizer.shared.quickOptimize()
         return ComprehensiveOptimizer.shared.lastResult?.totalFreedMB ?? 0
     }
 }

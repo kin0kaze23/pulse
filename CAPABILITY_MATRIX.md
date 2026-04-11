@@ -61,7 +61,7 @@
 |---------|--------|-------|
 | Memory "optimization" | ⚠️ PARTIAL | Renamed to "Memory Advisor" - closes idle apps, clears caches |
 | Cache cleanup | ✅ WORKING | Developer, browser, system caches |
-| **Trash-based deletion** | ✅ WORKING | Mixed strategy: User data → Trash (recoverable), Caches → Permanent delete |
+| **Trash-based deletion** | ✅ WORKING | ALL deletions go to Trash (recoverable). Caches are trashed then empty folder recreated. |
 | **Operation manifests** | ⚠️ PARTIAL | Logs cleanup actions, no restore from Trash |
 | Xcode DerivedData cleanup | ✅ WORKING | Deletes ~/Library/Developer/Xcode/DerivedData |
 | iOS Device Support cleanup | ✅ WORKING | Deletes old Xcode device support files |
@@ -181,7 +181,7 @@
 1. **Memory "optimization" cannot purge kernel memory** - macOS manages this automatically
 2. **Suspicious Process Scanner is heuristic only** - Cannot access other apps' accessibility permissions without FDA
 3. **Login Items scan incomplete** - macOS Sonoma+ stores in System Settings, not files
-4. **Undo via Trash** - User data goes to Trash (recoverable), but caches are permanently deleted
+4. **Undo via Trash** - ALL items go to Trash first (recoverable via macOS). Empty Trash for permanent delete.
 5. **Temperature reading may fail** - SMC access varies by Mac model, especially Apple Silicon
 6. **Docker cleanup requires CLI** - /usr/local/bin/docker must exist
 7. **No real Endpoint Security** - File watchers only, not kernel-level monitoring (future Security Extension)
@@ -196,7 +196,7 @@
 It can:
 - ✅ Show you what's using memory, CPU, disk, network
 - ✅ Close apps you're not using
-- ✅ Delete cache files that will regenerate (or move user data to Trash for recovery)
+- ✅ Delete cache files that will regenerate (ALL deletions go to Trash for recovery)
 - ✅ Alert you when resources are high
 - ✅ Find large files and old backups
 - ✅ List startup items for review
@@ -213,5 +213,22 @@ It cannot:
 
 ---
 
-*Last updated: March 27, 2026*
-*Version: 1.1 (pre-release)*
+## Phase 1 Safety Fixes (April 11, 2026)
+
+**5 critical safety issues resolved:**
+
+| # | Fix | Before | After |
+|---|---|---|---|
+| 1 | fullOptimize() bypass | Auto-deleted files without confirmation | Redirects to scanForCleanup() -> requires user confirmation |
+| 2 | ~/Library/Mail cleanup | Targeted entire Mail directory (actual emails) | Removed from scan entirely |
+| 3 | Trash-based deletion | Caches permanently deleted (no recovery) | ALL deletions go to Trash (recoverable) |
+| 4 | DiskSpaceGuardian auto-cleanup | Called executeCleanup() -> fullOptimize() bypass | Uses quickOptimize() (safe: idle apps + DNS only) |
+| 5 | Test helper mismatch | Downloads folder not protected in tests | Aligned with production code |
+
+**Verification:**
+- `swift build`: PASS (0 errors, 0 warnings)
+- `swift test`: PASS (73/73 runnable tests, 0 failures)
+- SafetyFeaturesTests: All 11 tests pass including new Downloads protection tests
+
+*Last updated: April 11, 2026*
+*Version: 1.2 (pre-release, Phase 1 safety complete)*
