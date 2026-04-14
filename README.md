@@ -75,22 +75,16 @@ Pulse is a **system monitoring dashboard** with **cache cleanup automation** for
 ## Screenshots
 
 ### Menu Bar
-The menu bar icon shows current memory percentage, color-coded by pressure level (green/yellow/orange/red). Click to open the popover with the Vitality Orb, quick stats, and one-click cleanup.
+![Menu bar](screenshots/pulse-01-onboarding.png)
 
-### Dashboard — Health Tab
-The hero card displays the health score with a large animated orb, trend indicators (24h/7d), score breakdown, and actionable recommendations. The status stack on the right shows memory, swap, browser tabs, and temperature at a glance.
+### Dashboard - Health
+![Health dashboard](screenshots/health-trend-01-dashboard.png)
 
-### Dashboard — Memory Tab
-Circular memory gauge with pressure-level coloring, detailed breakdown (used/free/cached/compressed/wired/swap), and historical memory usage chart.
+### Dashboard - Security
+![Security status](screenshots/pulse-02-security-status.png)
 
-### Dashboard — System Tab
-CPU gauges (user/system/idle), disk volume cards with reclaimable space, network interface stats, and battery/thermal indicators.
-
-### Dashboard — Cleaner Tab
-Process list with memory bars, kill actions, and cleanup history. The optimizer provides itemized cleanup plans with safe/review categories.
-
-### Dashboard — Security Tab
-Risk gauge, real-time monitoring toggle, persistence item list with enable/disable actions, and permission status indicators.
+### Permission Diagnostics
+![Permission diagnostics](screenshots/pulse-04-permissions-view.png)
 
 ---
 
