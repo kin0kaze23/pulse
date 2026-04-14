@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Darwin
+import PulseCore
 
 /// Comprehensive Memory & System Optimizer - Advanced Edition
 /// Inspired by Mole, enhanced with intelligent detection and user safety
@@ -150,7 +151,13 @@ class ComprehensiveOptimizer: ObservableObject {
 
     var settings: AppSettings { AppSettings.shared }
 
-    private init() {}
+    // MARK: - PulseCore Delegation (Xcode only)
+
+    private let xcodeDelegator: XcodeDelegator
+
+    private init() {
+        self.xcodeDelegator = XcodeDelegator()
+    }
 
     // MARK: - Public API
 
@@ -654,6 +661,22 @@ class ComprehensiveOptimizer: ObservableObject {
 
     // MARK: - Scanner Methods (Dry-Run)
 
+    /// Scan Xcode profiles via PulseCore, respecting app-level settings.
+    private func scanXcodeViaPulseCore() -> [CleanupPlan.CleanupItem] {
+        let allItems = xcodeDelegator.scan(excludedPaths: settings.whitelistedPaths)
+
+        // Respect app-level toggles: filter out DerivedData/DeviceSupport if disabled
+        return allItems.filter { item in
+            if item.name == "Xcode DerivedData" && !settings.cleanXcodeDerivedData {
+                return false
+            }
+            if item.name == "iOS DeviceSupport" && !settings.cleanXcodeDeviceSupport {
+                return false
+            }
+            return true
+        }
+    }
+
     private func scanDeveloperCaches() -> [CleanupPlan.CleanupItem] {
         var items: [CleanupPlan.CleanupItem] = []
         
@@ -688,74 +711,9 @@ class ComprehensiveOptimizer: ObservableObject {
             }
         }
 
-        // Xcode - requires Xcode to be closed
-        let xcodeRunning = isAppRunning("Xcode")
-        if settings.cleanXcodeDerivedData {
-            let xcodeSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/DerivedData")
-            if xcodeSize > 50 {
-                items.append(.init(
-                    name: "Xcode DerivedData",
-                    sizeMB: xcodeSize,
-                    category: .developer,
-                    path: "~/Library/Developer/Xcode/DerivedData",
-                    isDestructive: false,
-                    requiresAppClosed: true,
-                    appName: "Xcode",
-                    warningMessage: xcodeRunning ? "Close Xcode to clean safely" : nil,
-                    priority: .medium
-                ))
-            }
-        }
-
-        // Xcode DeviceSupport (only if enabled)
-        if settings.cleanXcodeDeviceSupport {
-            let deviceSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/iOS DeviceSupport")
-            if deviceSize > 100 {
-                items.append(.init(
-                    name: "iOS DeviceSupport",
-                    sizeMB: deviceSize,
-                    category: .developer,
-                    path: "~/Library/Developer/Xcode/iOS DeviceSupport",
-                    isDestructive: false,
-                    requiresAppClosed: false,
-                    appName: nil,
-                    warningMessage: "Removes old device debugging symbols",
-                    priority: .medium
-                ))
-            }
-        }
-        
-        // Xcode Archives (old builds)
-        let archivesSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/Xcode/Archives")
-        if archivesSize > 100 {
-            items.append(.init(
-                name: "Xcode Archives",
-                sizeMB: archivesSize,
-                category: .developer,
-                path: "~/Library/Developer/Xcode/Archives",
-                isDestructive: false, // NOT destructive - build artifacts can be rebuilt
-                requiresAppClosed: false,
-                appName: nil,
-                warningMessage: "Contains archived builds - delete only if you don't need them",
-                priority: .low
-            ))
-        }
-        
-        // iOS Simulators
-        let simulatorSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Developer/CoreSimulator")
-        if simulatorSize > 500 {
-            items.append(.init(
-                name: "iOS Simulators",
-                sizeMB: simulatorSize,
-                category: .developer,
-                path: "~/Library/Developer/CoreSimulator",
-                isDestructive: false,
-                requiresAppClosed: false,
-                appName: nil,
-                warningMessage: "Run 'xcrun simctl delete unavailable' to clean safely",
-                priority: .low
-            ))
-        }
+        // Xcode paths — delegated to PulseCore CleanupEngine
+        let xcodeItems = scanXcodeViaPulseCore()
+        items.append(contentsOf: xcodeItems)
 
         // JetBrains - check if running
         let jetbrainsRunning = isAppRunning("IntelliJ IDEA") || isAppRunning("WebStorm") || isAppRunning("PyCharm")
@@ -1100,6 +1058,10 @@ class ComprehensiveOptimizer: ObservableObject {
         }
 
         if item.category == .developer {
+            // Xcode items are now handled by PulseCore CleanupEngine
+            if isXcodeProfileItem(item) {
+                return xcodeDelegator.apply(item: item, excludedPaths: settings.whitelistedPaths)
+            }
             if item.name.contains("Xcode") && isXcodeRunning() {
                 return 0
             }
@@ -1485,6 +1447,17 @@ class ComprehensiveOptimizer: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Check if a cleanup item belongs to the Xcode profile (as defined by PulseCore).
+    private func isXcodeProfileItem(_ item: CleanupPlan.CleanupItem) -> Bool {
+        let xcodePaths = [
+            "~/Library/Developer/Xcode/DerivedData",
+            "~/Library/Developer/Xcode/Archives",
+            "~/Library/Developer/Xcode/iOS DeviceSupport",
+            "~/Library/Developer/CoreSimulator",
+        ]
+        return xcodePaths.contains(item.path)
+    }
 
     private func isXcodeRunning() -> Bool {
         isAppRunning("Xcode")
