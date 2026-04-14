@@ -244,14 +244,29 @@ class SecurityScanner: ObservableObject {
         "com.opencode",
         "com.paperclip",
     ]
-    
+
     private let suspiciousKeywords = [
         "keylog", "logger", "monitor", "track", "spy", "steal",
         "capture", "record", "inject", "hook", "intercept",
         "remote", "backdoor", "trojan", "rat", "keysniff",
         "screencapture", "screen_capture", "mousehook"
     ]
-    
+
+    // MARK: - Internal Accessors for Testing
+
+    /// Check if a bundle ID is in the known-safe whitelist.
+    /// Internal visibility for test access.
+    func isKnownSafeBundleID(_ bundleID: String) -> Bool {
+        knownSafeBundleIDs.contains { bundleID.hasPrefix($0) }
+    }
+
+    /// Check if a process name contains suspicious keywords.
+    /// Internal visibility for test access.
+    func containsSuspiciousKeyword(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return suspiciousKeywords.contains { lower.contains($0) }
+    }
+
     // Known unnecessary third-party daemons - not malware but consume resources
     // These are update checkers, telemetry agents, or leftover installers
     private let knownUnnecessaryDaemonPrefixes = [

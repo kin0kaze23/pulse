@@ -613,7 +613,8 @@ class StorageAnalyzer: ObservableObject {
     // MARK: - Cleanup Actions
     
     /// Validate that a path is safe to delete
-    private func isPathSafeToDelete(_ path: String) -> Bool {
+    /// Internal visibility for testing.
+    func isPathSafeToDelete(_ path: String) -> Bool {
         let lowerPath = path.lowercased()
         
         // Protect critical system paths
@@ -625,15 +626,24 @@ class StorageAnalyzer: ObservableObject {
         
         for protected in protectedPrefixes {
             if lowerPath.hasPrefix(protected) {
+                // Exception: user-writable subdirectories
+                if protected == "/var" && lowerPath.contains("/var/folders") {
+                    continue
+                }
                 return false
             }
         }
         
         // Protect user home directory root and important folders
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        if path == homeDir || 
-           path.hasPrefix(homeDir + "/Documents") || 
-           path.hasPrefix(homeDir + "/Desktop") {
+        if path == homeDir ||
+           path.hasPrefix(homeDir + "/Documents") ||
+           path.hasPrefix(homeDir + "/Desktop") ||
+           path.hasPrefix(homeDir + "/Downloads") {
+            // Exception: individual files inside Downloads can be cleaned
+            if path.hasPrefix(homeDir + "/Downloads") && path != homeDir + "/Downloads" {
+                return true
+            }
             return false
         }
         

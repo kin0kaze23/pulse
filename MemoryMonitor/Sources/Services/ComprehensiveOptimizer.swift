@@ -1193,7 +1193,8 @@ class ComprehensiveOptimizer: ObservableObject {
     }
     
     /// Check if a path is safe to delete (not a critical system path)
-    private func isPathSafeToDelete(_ path: String) -> Bool {
+    /// Internal visibility for testing.
+    func isPathSafeToDelete(_ path: String) -> Bool {
         let lowerPath = path.lowercased()
         
         // Critical system paths that should NEVER be deleted
