@@ -16,6 +16,77 @@ public enum CleanupProfile: String, CaseIterable {
     // v0.2: case homebrew, case node, case docker, case browser, case system
 }
 
+// MARK: - Deletion Strategy
+
+/// How files should be deleted during cleanup operations.
+public enum DeletionStrategy {
+    /// Move to Trash (recoverable). Default for user-facing cleanup.
+    case trash
+    /// Permanent deletion (not recoverable). Used for tests and automation.
+    case permanent
+}
+
+// MARK: - File Operation Policy
+
+/// Protocol for file deletion operations. Allows testing and policy injection
+/// without coupling PulseCore to AppKit or UI concerns.
+public protocol FileOperationPolicy {
+    /// The default deletion strategy for this policy.
+    var strategy: DeletionStrategy { get }
+
+    /// Delete a path according to the policy.
+    /// Returns true if the path was successfully removed.
+    func delete(path: String) throws -> Bool
+}
+
+/// Default production policy: Trash-first with cache directory recreation.
+public struct TrashFirstPolicy: FileOperationPolicy {
+    public let strategy: DeletionStrategy = .trash
+
+    public init() {}
+
+    public func delete(path: String) throws -> Bool {
+        let expandedPath = (path as NSString).expandingTildeInPath
+
+        guard FileManager.default.fileExists(atPath: expandedPath) else {
+            return false
+        }
+
+        let url = URL(fileURLWithPath: expandedPath)
+        var trashURL: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &trashURL)
+
+        // Recreate cache directories that apps expect to exist.
+        let isCachePath = path.contains("Caches") || path.contains("cache") ||
+                          path.contains("DerivedData") || path.contains("node_modules") ||
+                          path.contains("CoreSimulator") || path.contains("DeviceSupport") ||
+                          path.contains("Archives")
+        if isCachePath {
+            try? FileManager.default.createDirectory(atPath: expandedPath, withIntermediateDirectories: true)
+        }
+
+        return true
+    }
+}
+
+/// Permanent deletion policy. Used in tests and non-interactive contexts.
+public struct PermanentDeletePolicy: FileOperationPolicy {
+    public let strategy: DeletionStrategy = .permanent
+
+    public init() {}
+
+    public func delete(path: String) throws -> Bool {
+        let expandedPath = (path as NSString).expandingTildeInPath
+
+        guard FileManager.default.fileExists(atPath: expandedPath) else {
+            return false
+        }
+
+        try FileManager.default.removeItem(atPath: expandedPath)
+        return true
+    }
+}
+
 // MARK: - Cleanup Config
 
 /// Configuration for a cleanup scan/apply operation.
@@ -28,12 +99,23 @@ public struct CleanupConfig {
     /// User-defined paths to always skip during cleanup.
     public var excludedPaths: [String]
 
+    /// How files should be deleted. Defaults to .trash for user safety.
+    public var deletionStrategy: DeletionStrategy
+
+    /// File operation policy for deletion. Defaults to TrashFirstPolicy.
+    /// Inject a custom policy to override deletion behavior (e.g. for testing).
+    public var fileOperationPolicy: FileOperationPolicy
+
     public init(
         profiles: Set<CleanupProfile> = [.xcode],
-        excludedPaths: [String] = []
+        excludedPaths: [String] = [],
+        deletionStrategy: DeletionStrategy = .trash,
+        fileOperationPolicy: FileOperationPolicy? = nil
     ) {
         self.profiles = profiles
         self.excludedPaths = excludedPaths
+        self.deletionStrategy = deletionStrategy
+        self.fileOperationPolicy = fileOperationPolicy ?? TrashFirstPolicy()
     }
 }
 

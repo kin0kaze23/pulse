@@ -119,7 +119,11 @@ final class CleanupEngineTests: XCTestCase {
     func testApplyDeletesRealDirectory() {
         // Create a real temp directory
         let testDir = createTestDirectory(named: "pulse-cleanup-test", sizeMB: 10)
-        let config = CleanupConfig(profiles: [.xcode])
+        // Tests use permanent delete for deterministic assertions
+        let config = CleanupConfig(
+            profiles: [.xcode],
+            fileOperationPolicy: PermanentDeletePolicy()
+        )
 
         // Create a cleanup plan pointing at our test directory
         let plan = CleanupPlan(items: [
@@ -146,7 +150,10 @@ final class CleanupEngineTests: XCTestCase {
     }
 
     func testApplySkipsProtectedPaths() {
-        let config = CleanupConfig(profiles: [.xcode])
+        let config = CleanupConfig(
+            profiles: [.xcode],
+            fileOperationPolicy: PermanentDeletePolicy()
+        )
 
         let plan = CleanupPlan(items: [
             .init(
@@ -171,7 +178,8 @@ final class CleanupEngineTests: XCTestCase {
     func testApplyRespectsUserExclusions() {
         let config = CleanupConfig(
             profiles: [.xcode],
-            excludedPaths: ["/Users/test/Library/Developer/Xcode/DerivedData"]
+            excludedPaths: ["/Users/test/Library/Developer/Xcode/DerivedData"],
+            fileOperationPolicy: PermanentDeletePolicy()
         )
 
         let plan = CleanupPlan(items: [

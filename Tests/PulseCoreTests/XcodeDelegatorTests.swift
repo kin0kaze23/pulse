@@ -49,10 +49,10 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
         }
     }
 
-    // MARK: - Apply Tests
+    // MARK: - Apply Tests (Permanent Delete for deterministic assertions)
 
     func testApplySkipsNonexistentPath() {
-        let config = CleanupConfig(profiles: [.xcode])
+        let config = CleanupConfig(profiles: [.xcode], fileOperationPolicy: PermanentDeletePolicy())
         let plan = CleanupPlan(items: [
             .init(
                 name: "Fake Xcode Cache",
@@ -74,7 +74,7 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
         let testDir = createTestDirectory(named: "xcode-delegator-test", sizeMB: 5)
         defer { try? FileManager.default.removeItem(at: testDir) }
 
-        let config = CleanupConfig(profiles: [.xcode])
+        let config = CleanupConfig(profiles: [.xcode], fileOperationPolicy: PermanentDeletePolicy())
         let plan = CleanupPlan(items: [
             .init(
                 name: "Test Xcode Cleanup",
@@ -99,7 +99,7 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
     // MARK: - Safety Tests
 
     func testApplySkipsProtectedPath() {
-        let config = CleanupConfig(profiles: [.xcode])
+        let config = CleanupConfig(profiles: [.xcode], fileOperationPolicy: PermanentDeletePolicy())
         let plan = CleanupPlan(items: [
             .init(
                 name: "System Path",
@@ -122,7 +122,8 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
     func testApplyRespectsExcludedPaths() {
         let config = CleanupConfig(
             profiles: [.xcode],
-            excludedPaths: ["/Users/test/Library/Developer/Xcode/DerivedData"]
+            excludedPaths: ["/Users/test/Library/Developer/Xcode/DerivedData"],
+            fileOperationPolicy: PermanentDeletePolicy()
         )
 
         let plan = CleanupPlan(items: [
@@ -140,6 +141,48 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
 
         let result = engine.apply(plan: plan, config: config)
         XCTAssertTrue(result.skipped.contains { $0.reason == "Protected path" })
+    }
+
+    // MARK: - Deletion Strategy Tests
+
+    func testTrashFirstPolicy_MovesToTrash() {
+        let testDir = createTestDirectory(named: "trash-test", sizeMB: 1)
+        let policy = TrashFirstPolicy()
+
+        let success = try? policy.delete(path: testDir.path)
+        XCTAssertTrue(success == true)
+
+        // Original path should be gone (moved to Trash)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.path))
+    }
+
+    func testTrashFirstPolicy_RecreatesCacheDirectory() {
+        // DerivedData is a cache path — should be recreated after trash
+        let testDir = createTestDirectory(named: "DerivedData", sizeMB: 1)
+        let policy = TrashFirstPolicy()
+
+        let success = try? policy.delete(path: testDir.path)
+        XCTAssertTrue(success == true)
+
+        // Cache directories should be recreated after deletion
+        XCTAssertTrue(FileManager.default.fileExists(atPath: testDir.path))
+    }
+
+    func testPermanentDeletePolicy_RemovesPermanently() {
+        let testDir = createTestDirectory(named: "permanent-test", sizeMB: 1)
+        let policy = PermanentDeletePolicy()
+
+        let success = try? policy.delete(path: testDir.path)
+        XCTAssertTrue(success == true)
+
+        // Should be permanently deleted — no recreation
+        XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.path))
+    }
+
+    func testDefaultConfig_UsesTrashStrategy() {
+        let config = CleanupConfig()
+        XCTAssertEqual(config.deletionStrategy, .trash)
+        XCTAssertTrue(config.fileOperationPolicy is TrashFirstPolicy)
     }
 
     // MARK: - Helpers

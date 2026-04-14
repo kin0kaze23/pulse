@@ -55,8 +55,8 @@ public struct CleanupEngine {
                 continue
             }
 
-            // Execute deletion
-            let freedMB = executeDelete(item.path)
+            // Execute deletion using the configured file operation policy
+            let freedMB = executeDelete(item.path, policy: config.fileOperationPolicy)
             steps.append(.init(
                 name: item.name,
                 freedMB: freedMB,
@@ -147,21 +147,17 @@ public struct CleanupEngine {
 
     // MARK: - Delete
 
-    /// Delete a path. Cache directories are permanently deleted (they regenerate).
+    /// Delete a path using the configured file operation policy.
     /// Returns the size freed in MB, or 0 if deletion failed.
-    private func executeDelete(_ path: String) -> Double {
+    private func executeDelete(_ path: String, policy: FileOperationPolicy) -> Double {
         let expandedPath = (path as NSString).expandingTildeInPath
 
         // Measure size before deletion
         let sizeBefore = scanner.directorySizeMB(path)
 
-        guard FileManager.default.fileExists(atPath: expandedPath) else {
-            return 0
-        }
-
         do {
-            try FileManager.default.removeItem(atPath: expandedPath)
-            return sizeBefore
+            let success = try policy.delete(path: path)
+            return success ? sizeBefore : 0
         } catch {
             return 0
         }
