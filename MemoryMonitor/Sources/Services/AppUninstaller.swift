@@ -160,7 +160,6 @@ class AppUninstaller: ObservableObject {
             "com.apple.systempreferences",
             "com.apple.systemsettings",
             // Pulse itself
-            "com.jonathannugroho.Pulse",
             "com.nousresearch.Pulse",
         ]
     }

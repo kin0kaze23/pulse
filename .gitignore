@@ -7,6 +7,8 @@ DerivedData/
 *.swp
 *~
 
+Pulse.app/
+
 # Doppler
 .doppler.env
 .doppler/

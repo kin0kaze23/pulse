@@ -1424,7 +1424,7 @@ class ComprehensiveOptimizer: ObservableObject {
             "com.apple.controlcenter", "com.apple.notificationcenterui",
             "com.apple.WindowManager", "com.apple.loginwindow", "com.apple.Spotlight",
             "com.apple.Mail", "com.apple.Safari", "com.apple.Terminal",
-            "com.apple.ActivityMonitor", "com.jonathannugroho.pulse", "Pulse",
+            "com.apple.ActivityMonitor", "Pulse",
             "com.apple.LaunchServices", "com.apple.dt.Xcode",
             "com.google.Chrome", "com.apple.MobileSMS", "com.apple.iChat"
         ]

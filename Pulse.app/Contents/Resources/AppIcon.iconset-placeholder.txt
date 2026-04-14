@@ -1,9 +1,0 @@
-App Icon Placeholder
-
-For a production release, create:
-- AppIcon.icns with sizes: 16, 32, 64, 128, 256, 512, 1024
-
-Design suggestions for Pulse:
-- Heart/pulse line icon (health monitoring theme)
-- Blue/green gradient for trust/freshness
-- Clean, modern macOS Big Sur style

@@ -243,7 +243,6 @@ class SecurityScanner: ObservableObject {
         "com.objective-see.LuLu",
         "com.opencode",
         "com.paperclip",
-        "com.jonathannugroho",
     ]
     
     private let suspiciousKeywords = [
