@@ -145,7 +145,6 @@ final class SecurityScannerTests: XCTestCase {
             "com.docker.vmnetd",
             "homebrew.mxcl.postgresql",
             "ai.hermes.gateway",
-            "com.jonathannugroho.background-services",
             "com.paperclip.server",
         ]
 

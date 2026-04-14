@@ -249,7 +249,6 @@ enum TestSafetyHelpers {
             "com.objective-see.LuLu",
             "com.opencode",
             "com.paperclip",
-            "com.jonathannugroho",
         ]
         return knownSafeBundleIDs.contains { bundleID.hasPrefix($0) }
     }

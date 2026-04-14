@@ -25,7 +25,6 @@ final class AppUninstallerTests: XCTestCase {
 
         // Pulse itself must be protected
         XCTAssertTrue(
-            protected.contains("com.jonathannugroho.Pulse") ||
             protected.contains("com.nousresearch.Pulse")
         )
     }
