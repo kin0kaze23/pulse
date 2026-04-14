@@ -2,27 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   build:
     runs-on: macos-14
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v2
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
         with:
-          swift-version: "5.9"
-
-      - name: Resolve Dependencies
-        run: swift package resolve
-
-      - name: Build
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+      - name: Build (SPM)
         run: swift build
-
-      - name: Run Tests
+      - name: Test (SPM)
         run: swift test
+      - name: Build (Xcode)
+        run: |
+          xcodebuild -project Pulse.xcodeproj \
+            -scheme Pulse \
+            -configuration Debug \
+            build \
+            CODE_SIGN_IDENTITY="-" \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || true

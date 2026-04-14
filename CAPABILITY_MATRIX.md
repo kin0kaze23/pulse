@@ -10,6 +10,28 @@
 
 ---
 
+## v0.1 Alpha Scope (2026-04)
+
+For v0.1 alpha, only these features are the active development focus:
+
+**Included in v0.1:**
+- Xcode cache cleanup (DerivedData, Archives, Device Support, simulators)
+- Homebrew cache cleanup
+- Safety validation (protected paths, dry-run, preview-first)
+- PulseCore extraction (cleanup engine as standalone library)
+- PulseCLI (4 commands: analyze, clean --dry-run, clean --profile --dry-run, clean --profile --apply)
+- PulseApp shell over PulseCore
+
+**Deferred to v0.2:** [v0.2]
+- Node.js cleanup (npm/yarn/pnpm caches, node_modules)
+- Docker cleanup (containers, images, system prune)
+- Browser cache cleanup (Safari, Chrome, Firefox)
+- System cleanup (logs, temp files, font caches)
+- Health score trends
+- Security scanner (code exists, hidden from v0.1 messaging)
+
+---
+
 ## Feature Renaming (March 2026)
 
 | Old Name | New Name | Reason |

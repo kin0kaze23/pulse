@@ -1,3 +1,8 @@
+# TODO: Update after Phase 1 (PulseCore extraction) -- currently references
+# Pulse.xcodeproj which is valid for the current codebase. After PulseCore
+# is extracted as an SPM package, this workflow should build the PulseApp
+# scheme only, not the full project.
+#
 # Pulse Distribution Workflow
 # Builds, signs, and notarizes Pulse for release
 #

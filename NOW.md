@@ -3,114 +3,52 @@
 > Updated by /checkpoint. Do not edit manually unless /checkpoint is unavailable.
 
 ## Current Task
-Phase 3: Enhanced Features — ALL FEATURES COMPLETE
+Phase 0: Repo Hardening
 
 ## Status
 active
 
 ## Last Gate
 Build: PASS (swift build successful)
-Test: PASS (140 tests passing - all suites passing)
-
-## Blocked By
-None
-
-## Latest Decisions
-- Phase 2.1 (Bug Fixes + Tests): COMPLETE
-  - QuietHoursManager → AlertManager integration fixed
-  - 59 new unit tests added (25+19+15)
-  - Two-way settings sync with loop prevention
-  - Time-dependent test fixed in QuietHoursManagerTests
-- Phase 3 Implementation: COMPLETE (all 4 features)
-  - 3.1: Trigger History UI ✅
-  - 3.2: Large File Finder ✅
-  - 3.3: Privacy Permissions Audit ✅
-  - 3.4: Menu Bar Quick Actions ✅
+Test: PASS (verify current test count after Phase 0 changes)
 
 ## Immediate Next Steps
 
-### Phase 3.5: Testing & Polish (Planning)
-- [ ] Write unit tests for new services
-- [ ] Manual QA for all Phase 3 features
-- [ ] Documentation update
+### Phase 0: Repo Hardening (In Progress)
+- [x] Remove Pulse.app binary from git tracking
+- [x] Add Pulse.app/ to .gitignore
+- [x] Remove personal bundle IDs from source (SecurityScanner, AppUninstaller, ComprehensiveOptimizer)
+- [x] Remove personal bundle IDs from tests (SafetyFeaturesTests, AppUninstallerTests, SecurityScannerTests)
+- [x] Replace screenshot prose with real image embeds in README
+- [x] Delete OPEN_SOURCE_READINESS.md
+- [x] Update ROADMAP.md milestones
+- [ ] Update NOW.md (this file)
+- [ ] Update CAPABILITY_MATRIX.md with v0.1 alpha scope
+- [ ] Update README.md version and scope
+- [ ] Update CI workflow (add caching, Xcode build verification)
+- [ ] Rewrite SafetyFeaturesTests to test real implementation
 
-### Phase 3: Enhanced Features (In Progress)
+### Phase 0.5: Concurrency Safety (Planned)
+- [ ] Add @MainActor to data models and settings (Batch 1)
+- [ ] Add @MainActor to monitoring services (Batch 2)
+- [ ] Add @MainActor to coordinator and optimizer (Batch 3)
 
-**Phase 3.1: Trigger History UI**
-- [x] Create TriggerEvent model
-- [x] Create HistoricalMetricsService (extended with trigger events)
-- [x] Integrate with SmartTriggerMonitor
-- [x] Build TriggerHistoryView
-- [x] Add persistence (JSON file)
-
-**Phase 3.2: Large File Finder**
-- [x] Create LargeFileScanResult model
-- [x] Create LargeFileFinder service
-- [x] Build LargeFileFinderView
-- [x] Add safety checks and whitelist
-
-**Phase 3.3: Privacy Permissions Audit**
-- [x] Create AppPermission model (reused existing PermissionsService types)
-- [x] Create PermissionsAuditService
-- [x] Build PrivacyAuditView
-- [x] Add FDA request flow
-
-**Phase 3.4: Menu Bar Quick Actions**
-- [x] Add quickCleanup to ComprehensiveOptimizer (freeRAM method added)
-- [x] Update MenuBarLiteView (Stop Memory Hog button with confirmation)
-
-**Phase 3.5: Testing & Polish**
-- [ ] Write unit tests (target: 30+ new tests)
-- [ ] Manual QA for all features
-- [ ] Documentation update
-
-### Completed (Phase 2: Automation)
-- [x] AppSettings automation preferences (14 properties)
-- [x] AutomationScheduler (daily cleanup, weekly security scan)
-- [x] SmartTriggerMonitor (battery, memory, thermal triggers)
-- [x] QuietHoursManager (time-based suppression)
-- [x] Auto-cleanup mode (configurable threshold)
-- [x] MemoryMonitorManager integration
-- [x] SettingsView automation tab
-- [x] Phase 2.1 bug fixes and tests
+### After Phase 0.5
+- Phase 1: PulseCore extraction
+- Phase 2: PulseCLI v0.1
+- Phase 3: PulseApp shell
+- Phase 4: External alpha validation
 
 ## Deliverables Summary
 
-### Phase 2: Automation — COMPLETE
-
-**Files Created (4 new services):**
-| File | Purpose |
-|------|---------|
-| `AutomationScheduler.swift` | DispatchSourceTimer-based scheduling |
-| `SmartTriggerMonitor.swift` | Battery, memory, thermal trigger detection |
-| `QuietHoursManager.swift` | Time-based notification suppression |
-| `TimePicker.swift` | Custom time picker component |
-
-**Files Modified (3):**
-| File | Changes |
-|------|---------|
-| `AppSettings.swift` | 14 automation properties |
-| `MemoryMonitorManager.swift` | Automation service integration |
-| `SettingsView.swift` | Automation tab with 4 sections |
-
-**Test Results:**
-- Total tests: ~140 (80 existing + 59 new + 1 pre-existing failure)
-- Pass rate: 99.2% (118/119 runnable tests)
-- SmartTriggerMonitorTests: XCTest environment crash (not a code bug)
-
-### Phase 3: Enhanced Features — PLANNING COMPLETE
-
-**4 Features Planned:**
-1. Trigger History UI — Timeline of automation events
-2. Large File Finder — Identify space consumers
-3. Privacy Permissions Audit — Review app permissions
-4. Menu Bar Quick Actions — One-click cleanup
-
-**Implementation Plan:** docs/plans/PHASE_3_IMPLEMENTATION.md
-**Contract:** PLAN.md
+### Phase 0 Target
+- Clean git history (no binary, no personal IDs)
+- Real screenshots in README
+- Reconciled documentation
+- Test credibility (SafetyFeaturesTests hits real implementation)
+- CI workflow verifies both SPM and Xcode builds
 
 ---
 
-*Last updated: March 31, 2026*
-*Phase 2: Automation — COMPLETE*
-*Phase 3: Enhanced Features — PLANNING COMPLETE, READY FOR /implement*
+*Last updated: 2026-04-14*
+*Phase 0: Repo Hardening — In Progress*

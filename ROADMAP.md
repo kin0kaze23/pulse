@@ -14,19 +14,20 @@ macOS users need lightweight system monitoring without opening Activity Monitor.
 
 ## Current Phase
 
-**Phase 2 — System Monitors + Optimizer** — Complete memory/CPU monitors, implement optimizer flows, polish menu bar UI
+**Phase 0 — Repo Hardening** — Git hygiene, docs reconciliation, test credibility, concurrency safety
 
-**Target:** Q2 2026 (May-Jun)
+**Target:** 2026-04
 
 ## Milestones
 
 | Milestone | Target | Status |
 |---|---|---|
-| Phase 1: Core SwiftUI app + menu bar lifecycle | Q1 2026 | ✅ Done |
-| Phase 2: System monitors (memory, CPU) | Q2 2026 | 🟡 In Progress |
-| Phase 3: Optimizer + cleanup flows | Q2 2026 | ⚪ Planned |
-| Phase 4: Design polish + animations | Q3 2026 | ⚪ Planned |
-| Phase 5: App Store preparation | Q3 2026 | ⚪ Planned |
+| Phase 0: Repo hardening | 2026-04 | In Progress |
+| Phase 0.5: Concurrency safety | 2026-04 | Planned |
+| Phase 1: PulseCore extraction | 2026-05 | Planned |
+| Phase 2: PulseCLI v0.1 | 2026-05 | Planned |
+| Phase 3: PulseApp shell | 2026-06 | Planned |
+| Phase 4: External alpha | 2026-06 | Planned |
 
 Status: ✅ Done | 🟡 In Progress | 🔴 Blocked | ⚪ Planned
 

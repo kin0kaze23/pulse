@@ -174,22 +174,6 @@ The main window has 9 tabs:
 
 ---
 
-## Comparison with Other Tools
-
-| Feature | Pulse | Stats | iStat Menus | CleanMyMac |
-|---------|-------|-------|-------------|-------------|
-| **Price** | Free (MIT) | Free (MIT) | $12 | $40/yr |
-| **Menu Bar** | ✅ | ✅ | ✅ | ❌ |
-| **Dashboard** | ✅ | ❌ | ✅ | ✅ |
-| **Health Score** | ✅ (A-F) | ❌ | ✅ | ✅ |
-| **Cache Cleanup** | ✅ (itemized) | ❌ | ❌ | ✅ |
-| **Security Scan** | ✅ | ❌ | ❌ | ✅ |
-| **Process Kill** | ✅ | ❌ | ✅ | ✅ |
-| **Auto-Kill Guard** | ✅ | ❌ | ❌ | ❌ |
-| **Developer Profiles** | ✅ | ❌ | ❌ | ❌ |
-| **Open Source** | ✅ | ✅ | ❌ | ❌ |
-| **macOS 14+** | ✅ | ✅ | ✅ | ✅ |
-
 ---
 
 ## Development
@@ -304,31 +288,25 @@ swift test --filter AppSettingsTests     # Works
 
 ## Roadmap
 
-### Phase 1: Foundation ✅
-- Core monitoring (memory, CPU, disk, network)
-- Cache cleanup engine
-- Security scanner
-- Safety features (path validation, whitelists)
-- Test coverage for safety features
+### v0.1 Alpha (Current)
+- Xcode cache cleanup (DerivedData, Archives, Device Support)
+- Homebrew cache cleanup
+- Safety validation (protected paths, preview-first)
+- PulseCore extraction (cleanup engine as standalone library)
+- PulseCLI (4 commands: analyze, clean --dry-run, clean --profile, clean --apply)
+- PulseApp shell over PulseCore
 
-### Phase 2: Polish ✅
-- Truthful documentation (capability matrix, limitations)
-- Permission diagnostics screen
-- User onboarding flow
+### v0.2 (Planned)
+- Node.js cache cleanup
+- Docker cleanup (granular, not system prune)
+- Browser cache cleanup
+- System log/temp cleanup
+- Health score trends
 
-### Phase 3: Polish ✅
-- GitHub Actions CI/CD pipeline
-- DesignSystem color token consolidation
-- Dark mode audit and semantic color palette
-- README overhaul with CI badge and feature list
-- CHANGELOG.md with full milestone history
-
-### Phase 4: Distribution (Future)
-- Xcode project for entitlements
-- Code signing + notarization
-- Sparkle auto-updates
-- Historical charts (Swift Charts)
-- App Store submission (if feasible)
+### Future
+- Scheduled cleanup
+- Auto-updates
+- Additional profiles
 
 ---
 
@@ -357,4 +335,4 @@ The authors are not responsible for data loss, system instability, or any damage
 ---
 
 *Last updated: April 11, 2026*
-*Version: 1.2.0*
+*Version: 0.1.0 (alpha)*
