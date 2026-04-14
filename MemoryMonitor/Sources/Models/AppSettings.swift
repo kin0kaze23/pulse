@@ -2,8 +2,16 @@ import Foundation
 import Combine
 import ServiceManagement
 
-/// Global application settings managed with Combine publisher pattern
-/// Persists settings with UserDefaults and synchronizes with UI state
+/// Global application settings managed with Combine publisher pattern.
+/// Persists settings with UserDefaults and synchronizes with UI state.
+///
+/// Thread safety: This class is NOT @MainActor. Settings are read from
+/// background queues by monitoring services and written from the main thread
+/// (Settings UI). @Published properties are mutated from the main thread;
+/// reads from background threads are best-effort and may return stale values.
+///
+/// TODO: This coupling is the primary blocker for PulseCore extraction.
+/// See PHASE_1A_REPORT.md for dependency inventory and proposed boundary.
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
