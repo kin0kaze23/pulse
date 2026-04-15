@@ -111,9 +111,10 @@ class ComprehensiveOptimizer: ObservableObject {
             let appName: String?
             let warningMessage: String?
             let priority: CleanupPriority
+            let action: PulseCore.CleanupAction
             var skipReason: String?
 
-            init(name: String, sizeMB: Double, category: OptimizeResult.Category, path: String, isDestructive: Bool, requiresAppClosed: Bool, appName: String?, warningMessage: String?, skipReason: String? = nil, priority: CleanupPriority = .medium) {
+            init(name: String, sizeMB: Double, category: OptimizeResult.Category, path: String, isDestructive: Bool, requiresAppClosed: Bool, appName: String?, warningMessage: String?, skipReason: String? = nil, priority: CleanupPriority = .medium, action: PulseCore.CleanupAction = .file) {
                 self.name = name
                 self.sizeMB = sizeMB
                 self.category = category
@@ -124,6 +125,7 @@ class ComprehensiveOptimizer: ObservableObject {
                 self.warningMessage = warningMessage
                 self.skipReason = skipReason
                 self.priority = priority
+                self.action = action
             }
 
             var sizeText: String {
@@ -1457,7 +1459,8 @@ class ComprehensiveOptimizer: ObservableObject {
 
     /// Check if a cleanup item belongs to the Homebrew profile (as defined by PulseCore).
     private func isHomebrewProfileItem(_ item: CleanupPlan.CleanupItem) -> Bool {
-        item.path.hasPrefix("homebrew://") || item.path.contains("Homebrew")
+        if case .command = item.action { return true }
+        return false
     }
 
     private func isXcodeRunning() -> Bool {

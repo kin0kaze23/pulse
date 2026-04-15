@@ -47,20 +47,19 @@ public struct CleanupEngine {
         var steps: [CleanupResult.Step] = []
         var skipped: [CleanupResult.SkippedItem] = []
 
-        // Group Homebrew items — they use command execution, not file deletion
-        let homebrewItems = plan.items.filter { isHomebrewItem($0) }
-        let nonHomebrewItems = plan.items.filter { !isHomebrewItem($0) }
+        // Group items by execution action — command-based vs file-based
+        let commandItems = plan.items.filter { isCommandAction($0) }
+        let fileItems = plan.items.filter { !isCommandAction($0) }
 
-        // Execute Homebrew cleanup once (single command covers all Homebrew items)
-        if !homebrewItems.isEmpty {
-            let homebrew = HomebrewEngine()
-            let homebrewResult = homebrew.apply()
-            steps.append(contentsOf: homebrewResult.steps)
-            skipped.append(contentsOf: homebrewResult.skipped)
+        // Execute command-based cleanup (e.g., Homebrew)
+        if !commandItems.isEmpty {
+            let commandResult = executeCommandItems(commandItems)
+            steps.append(contentsOf: commandResult.steps)
+            skipped.append(contentsOf: commandResult.skipped)
         }
 
-        // Execute file-based cleanup for non-Homebrew items
-        for item in nonHomebrewItems {
+        // Execute file-based cleanup for non-command items
+        for item in fileItems {
             // Skip if user marked it as skipped
             if item.skipReason != nil {
                 skipped.append(.init(name: item.name, reason: item.skipReason!, sizeMB: item.sizeMB))
@@ -182,8 +181,65 @@ public struct CleanupEngine {
 
     // MARK: - Routing
 
-    /// Check if a cleanup item belongs to Homebrew (command-based, not file deletion).
-    private func isHomebrewItem(_ item: CleanupPlan.CleanupItem) -> Bool {
-        item.path.hasPrefix("homebrew://")
+    /// Check if a cleanup item should use command execution instead of file deletion.
+    private func isCommandAction(_ item: CleanupPlan.CleanupItem) -> Bool {
+        if case .command = item.action { return true }
+        return false
+    }
+
+    /// Execute all command-based cleanup items.
+    /// Returns steps and skipped items for each command execution.
+    private func executeCommandItems(_ items: [CleanupPlan.CleanupItem]) -> CleanupResult {
+        // Group by command — items with the same command share one execution.
+        var commands: [String: [CleanupPlan.CleanupItem]] = [:]
+        for item in items {
+            if case .command(let cmd) = item.action {
+                commands[cmd, default: []].append(item)
+            }
+        }
+
+        var steps: [CleanupResult.Step] = []
+        var skipped: [CleanupResult.SkippedItem] = []
+
+        for (command, group) in commands {
+            let success = runShellCommand(command)
+            if success {
+                // Report estimated freed space from the scanned sizes
+                let totalSize = group.reduce(0) { $0 + $1.sizeMB }
+                steps.append(.init(
+                    name: group.map(\.name).joined(separator: " + "),
+                    freedMB: totalSize,
+                    success: true,
+                    category: group.first?.category
+                ))
+            } else {
+                for item in group {
+                    skipped.append(.init(
+                        name: item.name,
+                        reason: "Command execution failed",
+                        sizeMB: item.sizeMB
+                    ))
+                }
+            }
+        }
+
+        return CleanupResult(steps: steps, skipped: skipped, totalFreedMB: steps.filter(\.success).reduce(0) { $0 + $1.freedMB })
+    }
+
+    /// Run a shell command via /bin/bash -c. Returns true on success.
+    private func runShellCommand(_ command: String) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = ["-c", command]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 }

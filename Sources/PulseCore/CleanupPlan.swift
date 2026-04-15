@@ -145,6 +145,18 @@ public enum CleanupPriority: String, CaseIterable, Codable, Comparable {
     }
 }
 
+// MARK: - Cleanup Action
+
+/// How a cleanup item should be executed.
+/// Replaces sentinel-string routing (homebrew://) with explicit typed routing.
+public enum CleanupAction {
+    /// Delete files directly via FileOperationPolicy (default).
+    case file
+    /// Execute a shell command instead of file deletion.
+    /// The associated value is the command to run (e.g., "brew cleanup --prune=all").
+    case command(String)
+}
+
 // MARK: - Cleanup Category
 
 /// Categories for cleanup items.
@@ -193,6 +205,7 @@ public struct CleanupPlan {
         public let appName: String?
         public let warningMessage: String?
         public let priority: CleanupPriority
+        public let action: CleanupAction
         public var skipReason: String?
 
         public init(
@@ -205,7 +218,8 @@ public struct CleanupPlan {
             appName: String?,
             warningMessage: String?,
             skipReason: String? = nil,
-            priority: CleanupPriority = .medium
+            priority: CleanupPriority = .medium,
+            action: CleanupAction = .file
         ) {
             self.name = name
             self.sizeMB = sizeMB
@@ -217,6 +231,7 @@ public struct CleanupPlan {
             self.warningMessage = warningMessage
             self.skipReason = skipReason
             self.priority = priority
+            self.action = action
         }
 
         public var sizeText: String {

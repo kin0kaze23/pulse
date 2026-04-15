@@ -45,7 +45,8 @@ struct HomebrewDelegator {
             requiresAppClosed: core.requiresAppClosed,
             appName: core.appName,
             warningMessage: core.warningMessage,
-            priority: mapPriorityToApp(core.priority)
+            priority: mapPriorityToApp(core.priority),
+            action: core.action
         )
     }
 

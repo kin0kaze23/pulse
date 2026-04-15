@@ -40,7 +40,8 @@ public struct HomebrewEngine {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .medium
+                priority: .medium,
+                action: .command("brew cleanup --prune=all")
             ))
         }
 
@@ -56,7 +57,8 @@ public struct HomebrewEngine {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: "Removes outdated formulae and cask versions",
-                priority: .medium
+                priority: .medium,
+                action: .command("brew cleanup --prune=all")
             ))
         }
 
@@ -76,15 +78,16 @@ public struct HomebrewEngine {
         var steps: [CleanupResult.Step] = []
         var skipped: [CleanupResult.SkippedItem] = []
 
+        // Measure estimated reclaimable BEFORE cleanup so we can report it
+        let estimatedReclaimable = measureReclaimableMB()
+
         // Run brew cleanup --prune=all
         let success = runBrewCleanup()
 
         if success {
-            // Measure what was freed by checking cache size after cleanup
-            let afterDownloads = cacheSizeMB(at: brewCacheDownloadsPath)
             steps.append(.init(
                 name: "Homebrew cleanup --prune=all",
-                freedMB: afterDownloads > 0 ? 0 : 0, // brew doesn't report freed easily
+                freedMB: estimatedReclaimable,
                 success: true,
                 category: .developer
             ))
