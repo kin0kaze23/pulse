@@ -34,6 +34,12 @@ public struct CleanupEngine {
             items.append(contentsOf: homebrewPlan.items)
         }
 
+        if config.profiles.contains(.node) {
+            let node = NodeEngine()
+            let nodePlan = node.scan()
+            items.append(contentsOf: nodePlan.items)
+        }
+
         let totalSizeMB = items.reduce(0) { $0 + $1.sizeMB }
         return CleanupPlan(items: items, totalSizeMB: totalSizeMB)
     }

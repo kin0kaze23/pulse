@@ -153,14 +153,16 @@ class ComprehensiveOptimizer: ObservableObject {
 
     var settings: AppSettings { AppSettings.shared }
 
-    // MARK: - PulseCore Delegation (Xcode and Homebrew)
+    // MARK: - PulseCore Delegation (Xcode, Homebrew, and Node)
 
     private let xcodeDelegator: XcodeDelegator
     private let homebrewDelegator: HomebrewDelegator
+    private let nodeDelegator: NodeDelegator
 
     private init() {
         self.xcodeDelegator = XcodeDelegator()
         self.homebrewDelegator = HomebrewDelegator()
+        self.nodeDelegator = NodeDelegator()
     }
 
     // MARK: - Public API
@@ -683,12 +685,13 @@ class ComprehensiveOptimizer: ObservableObject {
 
     private func scanDeveloperCaches() -> [CleanupPlan.CleanupItem] {
         var items: [CleanupPlan.CleanupItem] = []
-        
-        // Package manager caches
+
+        // Node.js package manager caches — delegated to PulseCore NodeEngine
+        let nodeItems = nodeDelegator.scan(excludedPaths: settings.whitelistedPaths)
+        items.append(contentsOf: nodeItems)
+
+        // Other developer caches (not yet delegated to PulseCore)
         let devCachePaths: [(name: String, path: String)] = [
-            ("npm cache", "~/.npm"),
-            ("Yarn cache", "~/Library/Caches/Yarn"),
-            ("pnpm store", "~/Library/pnpm/store"),
             ("Bun cache", "~/.bun/install/cache"),
             ("pip cache", "~/Library/Caches/pip"),
             ("Go module cache", "~/go/pkg/mod"),
@@ -1059,6 +1062,10 @@ class ComprehensiveOptimizer: ObservableObject {
             if isHomebrewProfileItem(item) {
                 let result = homebrewDelegator.apply()
                 return result.totalFreedMB
+            }
+            // Node.js items are handled by PulseCore NodeEngine
+            if isNodeProfileItem(item) {
+                return nodeDelegator.apply(item: item, excludedPaths: settings.whitelistedPaths)
             }
             if item.name.contains("Xcode") && isXcodeRunning() {
                 return 0
@@ -1461,6 +1468,16 @@ class ComprehensiveOptimizer: ObservableObject {
     private func isHomebrewProfileItem(_ item: CleanupPlan.CleanupItem) -> Bool {
         if case .command = item.action { return true }
         return false
+    }
+
+    /// Check if a cleanup item belongs to the Node.js profile (as defined by PulseCore).
+    private func isNodeProfileItem(_ item: CleanupPlan.CleanupItem) -> Bool {
+        let nodePaths = [
+            "~/.npm",
+            "~/Library/Caches/Yarn",
+            "~/Library/pnpm/store",
+        ]
+        return nodePaths.contains(item.path)
     }
 
     private func isXcodeRunning() -> Bool {
