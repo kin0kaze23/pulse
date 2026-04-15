@@ -10,10 +10,11 @@ import Foundation
 
 // MARK: - Cleanup Profile
 
-/// Profiles available for cleanup. v0.1 only supports Xcode.
+/// Profiles available for cleanup. v0.1: Xcode. v0.2: Homebrew.
 public enum CleanupProfile: String, CaseIterable {
     case xcode
-    // v0.2: case homebrew, case node, case docker, case browser, case system
+    case homebrew
+    // v0.3: case node, case docker, case browser, case system
 }
 
 // MARK: - Deletion Strategy

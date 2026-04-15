@@ -28,6 +28,12 @@ public struct CleanupEngine {
             items.append(contentsOf: scanXcode())
         }
 
+        if config.profiles.contains(.homebrew) {
+            let homebrew = HomebrewEngine()
+            let homebrewPlan = homebrew.scan()
+            items.append(contentsOf: homebrewPlan.items)
+        }
+
         let totalSizeMB = items.reduce(0) { $0 + $1.sizeMB }
         return CleanupPlan(items: items, totalSizeMB: totalSizeMB)
     }
@@ -41,7 +47,20 @@ public struct CleanupEngine {
         var steps: [CleanupResult.Step] = []
         var skipped: [CleanupResult.SkippedItem] = []
 
-        for item in plan.items {
+        // Group Homebrew items — they use command execution, not file deletion
+        let homebrewItems = plan.items.filter { isHomebrewItem($0) }
+        let nonHomebrewItems = plan.items.filter { !isHomebrewItem($0) }
+
+        // Execute Homebrew cleanup once (single command covers all Homebrew items)
+        if !homebrewItems.isEmpty {
+            let homebrew = HomebrewEngine()
+            let homebrewResult = homebrew.apply()
+            steps.append(contentsOf: homebrewResult.steps)
+            skipped.append(contentsOf: homebrewResult.skipped)
+        }
+
+        // Execute file-based cleanup for non-Homebrew items
+        for item in nonHomebrewItems {
             // Skip if user marked it as skipped
             if item.skipReason != nil {
                 skipped.append(.init(name: item.name, reason: item.skipReason!, sizeMB: item.sizeMB))
@@ -150,8 +169,6 @@ public struct CleanupEngine {
     /// Delete a path using the configured file operation policy.
     /// Returns the size freed in MB, or 0 if deletion failed.
     private func executeDelete(_ path: String, policy: FileOperationPolicy) -> Double {
-        let expandedPath = (path as NSString).expandingTildeInPath
-
         // Measure size before deletion
         let sizeBefore = scanner.directorySizeMB(path)
 
@@ -161,5 +178,12 @@ public struct CleanupEngine {
         } catch {
             return 0
         }
+    }
+
+    // MARK: - Routing
+
+    /// Check if a cleanup item belongs to Homebrew (command-based, not file deletion).
+    private func isHomebrewItem(_ item: CleanupPlan.CleanupItem) -> Bool {
+        item.path.hasPrefix("homebrew://")
     }
 }

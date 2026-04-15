@@ -151,12 +151,14 @@ class ComprehensiveOptimizer: ObservableObject {
 
     var settings: AppSettings { AppSettings.shared }
 
-    // MARK: - PulseCore Delegation (Xcode only)
+    // MARK: - PulseCore Delegation (Xcode and Homebrew)
 
     private let xcodeDelegator: XcodeDelegator
+    private let homebrewDelegator: HomebrewDelegator
 
     private init() {
         self.xcodeDelegator = XcodeDelegator()
+        self.homebrewDelegator = HomebrewDelegator()
     }
 
     // MARK: - Public API
@@ -764,20 +766,9 @@ class ComprehensiveOptimizer: ObservableObject {
             }
         }
 
-        // Homebrew
-        let brewSize = DirectorySizeUtility.quickDirectorySizeMB("~/Library/Caches/Homebrew")
-        if brewSize > 50 {
-            items.append(.init(
-                name: "Homebrew cache",
-                sizeMB: brewSize,
-                category: .developer,
-                path: "~/Library/Caches/Homebrew",
-                isDestructive: false,
-                requiresAppClosed: false,
-                appName: nil,
-                warningMessage: nil
-            ))
-        }
+        // Homebrew — delegated to PulseCore HomebrewEngine
+        let brewItems = homebrewDelegator.scan()
+        items.append(contentsOf: brewItems)
         
         // OpenCode DB - significant memory user
         let opencodeDBSize = DirectorySizeUtility.quickDirectorySizeMB("~/.local/share/opencode")
@@ -1061,6 +1052,11 @@ class ComprehensiveOptimizer: ObservableObject {
             // Xcode items are now handled by PulseCore CleanupEngine
             if isXcodeProfileItem(item) {
                 return xcodeDelegator.apply(item: item, excludedPaths: settings.whitelistedPaths)
+            }
+            // Homebrew items are handled by PulseCore HomebrewEngine
+            if isHomebrewProfileItem(item) {
+                let result = homebrewDelegator.apply()
+                return result.totalFreedMB
             }
             if item.name.contains("Xcode") && isXcodeRunning() {
                 return 0
@@ -1457,6 +1453,11 @@ class ComprehensiveOptimizer: ObservableObject {
             "~/Library/Developer/CoreSimulator",
         ]
         return xcodePaths.contains(item.path)
+    }
+
+    /// Check if a cleanup item belongs to the Homebrew profile (as defined by PulseCore).
+    private func isHomebrewProfileItem(_ item: CleanupPlan.CleanupItem) -> Bool {
+        item.path.hasPrefix("homebrew://") || item.path.contains("Homebrew")
     }
 
     private func isXcodeRunning() -> Bool {
