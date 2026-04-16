@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "PulseCore", targets: ["PulseCore"]),
+        .executable(name: "pulse", targets: ["PulseCLI"]),
     ],
     targets: [
         // PulseCore: Pure Swift cleanup engine. No AppKit, SwiftUI, ObservableObject, or @Published.
@@ -28,7 +29,18 @@ let package = Package(
             name: "PulseTests",
             dependencies: ["Pulse"],
             path: "Tests",
-            exclude: ["PulseCoreTests"]
+            exclude: ["PulseCoreTests", "PulseCLITests"]
+        ),
+        // PulseCLI: Command-line interface (depends on PulseCore)
+        .executableTarget(
+            name: "PulseCLI",
+            dependencies: ["PulseCore"],
+            path: "Sources/PulseCLI"
+        ),
+        .testTarget(
+            name: "PulseCLITests",
+            dependencies: ["PulseCLI"],
+            path: "Tests/PulseCLITests"
         ),
     ]
 )
