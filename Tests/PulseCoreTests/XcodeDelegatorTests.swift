@@ -62,7 +62,8 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 10)
 
@@ -84,7 +85,8 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 5)
 
@@ -109,7 +111,8 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 1)
 
@@ -135,7 +138,8 @@ final class XcodeDelegatorIntegrationTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 1)
 

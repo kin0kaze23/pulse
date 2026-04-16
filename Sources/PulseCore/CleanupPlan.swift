@@ -15,7 +15,8 @@ public enum CleanupProfile: String, CaseIterable {
     case xcode
     case homebrew
     case node
-    // v0.4: case docker, case browser, case system
+    case system
+    // v0.4: case docker, case browser
 }
 
 // MARK: - Deletion Strategy
@@ -207,6 +208,8 @@ public struct CleanupPlan {
         public let warningMessage: String?
         public let priority: CleanupPriority
         public let action: CleanupAction
+        /// Which profile this item belongs to. Used by CLI for display and routing.
+        public let profile: CleanupProfile
         public var skipReason: String?
 
         public init(
@@ -220,7 +223,8 @@ public struct CleanupPlan {
             warningMessage: String?,
             skipReason: String? = nil,
             priority: CleanupPriority = .medium,
-            action: CleanupAction = .file
+            action: CleanupAction = .file,
+            profile: CleanupProfile
         ) {
             self.name = name
             self.sizeMB = sizeMB
@@ -233,6 +237,7 @@ public struct CleanupPlan {
             self.skipReason = skipReason
             self.priority = priority
             self.action = action
+            self.profile = profile
         }
 
         public var sizeText: String {

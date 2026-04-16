@@ -23,7 +23,8 @@ final class CleanupActionTests: XCTestCase {
             isDestructive: false,
             requiresAppClosed: false,
             appName: nil,
-            warningMessage: nil
+            warningMessage: nil,
+            profile: .system
         )
 
         if case .file = item.action {
@@ -43,7 +44,8 @@ final class CleanupActionTests: XCTestCase {
             requiresAppClosed: false,
             appName: nil,
             warningMessage: nil,
-            action: .command("brew cleanup --prune=all")
+            action: .command("brew cleanup --prune=all"),
+            profile: .homebrew
         )
 
         if case .command(let cmd) = item.action {
@@ -91,7 +93,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true") // "true" always succeeds
+                action: .command("true"), // "true" always succeeds
+                profile: .system
             )
         ], totalSizeMB: 1)
 
@@ -124,7 +127,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .system
             )
         ], totalSizeMB: 1)
 
@@ -159,7 +163,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true")
+                action: .command("true"),
+                profile: .system
             ),
             .init(
                 name: "File Item",
@@ -170,7 +175,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .system
             )
         ], totalSizeMB: 101)
 
@@ -200,7 +206,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true")
+                action: .command("true"),
+                profile: .system
             ),
             .init(
                 name: "Item B",
@@ -211,7 +218,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true") // same command
+                action: .command("true"), // same command
+                profile: .system
             )
         ], totalSizeMB: 300)
 
@@ -237,7 +245,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true")
+                action: .command("true"),
+                profile: .system
             ),
             .init(
                 name: "Item B",
@@ -248,7 +257,8 @@ final class CleanupRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("echo hello") // different command
+                action: .command("echo hello"), // different command
+                profile: .system
             )
         ], totalSizeMB: 300)
 
@@ -277,7 +287,8 @@ final class HomebrewScanActionTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("brew cleanup --prune=all")
+                action: .command("brew cleanup --prune=all"),
+                profile: .homebrew
             )
         ], totalSizeMB: 100)
 

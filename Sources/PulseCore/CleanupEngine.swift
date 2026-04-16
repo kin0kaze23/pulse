@@ -114,7 +114,8 @@ public struct CleanupEngine {
                 requiresAppClosed: true,
                 appName: "Xcode",
                 warningMessage: nil,
-                priority: .medium
+                priority: .medium,
+                profile: .xcode
             ))
         }
 
@@ -130,7 +131,8 @@ public struct CleanupEngine {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: "Contains archived builds - delete only if you don't need them",
-                priority: .low
+                priority: .low,
+                profile: .xcode
             ))
         }
 
@@ -146,7 +148,8 @@ public struct CleanupEngine {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: "Removes old device debugging symbols",
-                priority: .medium
+                priority: .medium,
+                profile: .xcode
             ))
         }
 
@@ -162,7 +165,8 @@ public struct CleanupEngine {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: "Run 'xcrun simctl delete unavailable' to clean safely",
-                priority: .low
+                priority: .low,
+                profile: .xcode
             ))
         }
 

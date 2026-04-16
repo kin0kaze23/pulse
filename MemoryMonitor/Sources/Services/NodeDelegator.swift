@@ -46,7 +46,8 @@ struct NodeDelegator {
             appName: item.appName,
             warningMessage: item.warningMessage,
             priority: mapPriorityToCore(item.priority),
-            action: .file
+            action: .file,
+            profile: .node
         )
         let plan = PulseCore.CleanupPlan(items: [coreItem], totalSizeMB: item.sizeMB)
         let config = CleanupConfig(profiles: [.node], excludedPaths: excludedPaths)
@@ -67,7 +68,8 @@ struct NodeDelegator {
             appName: core.appName,
             warningMessage: core.warningMessage,
             priority: mapPriorityToApp(core.priority),
-            action: core.action
+            action: core.action,
+            profile: core.profile
         )
     }
 

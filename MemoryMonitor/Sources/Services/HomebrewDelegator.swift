@@ -46,7 +46,8 @@ struct HomebrewDelegator {
             appName: core.appName,
             warningMessage: core.warningMessage,
             priority: mapPriorityToApp(core.priority),
-            action: core.action
+            action: core.action,
+            profile: core.profile
         )
     }
 

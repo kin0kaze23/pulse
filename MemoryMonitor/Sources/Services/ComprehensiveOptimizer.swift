@@ -112,9 +112,10 @@ class ComprehensiveOptimizer: ObservableObject {
             let warningMessage: String?
             let priority: CleanupPriority
             let action: PulseCore.CleanupAction
+            let profile: PulseCore.CleanupProfile
             var skipReason: String?
 
-            init(name: String, sizeMB: Double, category: OptimizeResult.Category, path: String, isDestructive: Bool, requiresAppClosed: Bool, appName: String?, warningMessage: String?, skipReason: String? = nil, priority: CleanupPriority = .medium, action: PulseCore.CleanupAction = .file) {
+            init(name: String, sizeMB: Double, category: OptimizeResult.Category, path: String, isDestructive: Bool, requiresAppClosed: Bool, appName: String?, warningMessage: String?, skipReason: String? = nil, priority: CleanupPriority = .medium, action: PulseCore.CleanupAction = .file, profile: PulseCore.CleanupProfile) {
                 self.name = name
                 self.sizeMB = sizeMB
                 self.category = category
@@ -126,6 +127,7 @@ class ComprehensiveOptimizer: ObservableObject {
                 self.skipReason = skipReason
                 self.priority = priority
                 self.action = action
+                self.profile = profile
             }
 
             var sizeText: String {
@@ -223,7 +225,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     requiresAppClosed: false,
                     appName: nil,
                     warningMessage: "Permanently deletes files in Trash",
-                    priority: .high
+                    priority: .high,
+                    profile: .system
                 ))
             }
             
@@ -713,7 +716,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: false,
                     requiresAppClosed: false,
                     appName: nil,
-                    warningMessage: nil
+                    warningMessage: nil,
+                    profile: .system
                 ))
             }
         }
@@ -734,7 +738,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "JetBrains IDE",
-                warningMessage: jetbrainsRunning ? "Close JetBrains IDE to clean safely" : nil
+                warningMessage: jetbrainsRunning ? "Close JetBrains IDE to clean safely" : nil,
+                profile: .system
             ))
         }
 
@@ -750,7 +755,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "VS Code",
-                warningMessage: vscodeRunning ? "Close VS Code to clean safely" : nil
+                warningMessage: vscodeRunning ? "Close VS Code to clean safely" : nil,
+                profile: .system
             ))
         }
 
@@ -766,7 +772,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: false,
                     requiresAppClosed: false,
                     appName: nil,
-                    warningMessage: "Runs 'docker system prune' - removes unused containers/images"
+                    warningMessage: "Runs 'docker system prune' - removes unused containers/images",
+                    profile: .system
                 ))
             }
         }
@@ -786,7 +793,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 isDestructive: false,
                 requiresAppClosed: true,
                 appName: "OpenCode",
-                warningMessage: "Cleans old sessions - keep only 3 most recent"
+                warningMessage: "Cleans old sessions - keep only 3 most recent",
+                profile: .system
             ))
         }
 
@@ -826,7 +834,8 @@ class ComprehensiveOptimizer: ObservableObject {
                     isDestructive: false,
                     requiresAppClosed: true,
                     appName: processName,
-                    warningMessage: isRunning ? "Close \(processName) to clean safely" : nil
+                    warningMessage: isRunning ? "Close \(processName) to clean safely" : nil,
+                    profile: .system
                 ))
             }
         }
@@ -850,7 +859,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: true,
                 appName: "Safari",
                 warningMessage: safariRunning ? "Close Safari to clean safely" : nil,
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
 
@@ -867,7 +877,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: true,
                 appName: "Google Chrome",
                 warningMessage: chromeRunning ? "Close Chrome to clean safely" : nil,
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
 
@@ -884,7 +895,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: true,
                 appName: "Firefox",
                 warningMessage: firefoxRunning ? "Close Firefox to clean safely" : nil,
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
 
@@ -901,7 +913,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: true,
                 appName: "Brave Browser",
                 warningMessage: braveRunning ? "Close Brave to clean safely" : nil,
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
 
@@ -925,7 +938,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
         
@@ -941,7 +955,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: "May require admin privileges",
-                priority: .medium
+                priority: .medium,
+                profile: .system
             ))
         }
         
@@ -957,7 +972,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .high
+                priority: .high,
+                profile: .system
             ))
         }
         
@@ -979,7 +995,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .high
+                priority: .high,
+                profile: .system
             ))
         }
 
@@ -995,7 +1012,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .high
+                priority: .high,
+                profile: .system
             ))
         }
         
@@ -1011,7 +1029,8 @@ class ComprehensiveOptimizer: ObservableObject {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                priority: .high
+                priority: .high,
+                profile: .system
             ))
         }
         

@@ -69,18 +69,6 @@ enum AnalyzeCommand {
     }
 
     private static func profileLabel(for item: CleanupPlan.CleanupItem) -> String {
-        // Determine profile from item path/name
-        if case .command = item.action {
-            return "homebrew"
-        }
-        let xcodePaths = ["DerivedData", "Archives", "DeviceSupport", "CoreSimulator"]
-        if xcodePaths.contains(where: { item.path.contains($0) }) {
-            return "xcode"
-        }
-        let nodePaths = [".npm", "Yarn", "pnpm"]
-        if nodePaths.contains(where: { item.path.contains($0) }) {
-            return "node"
-        }
-        return "unknown"
+        return item.profile.rawValue
     }
 }

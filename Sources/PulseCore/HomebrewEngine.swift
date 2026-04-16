@@ -41,7 +41,8 @@ public struct HomebrewEngine {
                 appName: nil,
                 warningMessage: nil,
                 priority: .medium,
-                action: .command("brew cleanup --prune=all")
+                action: .command("brew cleanup --prune=all"),
+                profile: .homebrew
             ))
         }
 
@@ -58,7 +59,8 @@ public struct HomebrewEngine {
                 appName: nil,
                 warningMessage: "Removes outdated formulae and cask versions",
                 priority: .medium,
-                action: .command("brew cleanup --prune=all")
+                action: .command("brew cleanup --prune=all"),
+                profile: .homebrew
             ))
         }
 

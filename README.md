@@ -35,13 +35,11 @@ Pulse is a **system monitoring dashboard** with **cache cleanup automation** for
 
 ### Cache Cleanup
 - **Xcode** — DerivedData, Archives, Device Support, simulators
-- **Docker** — Stopped containers, dangling images, system prune
-- **Node.js** — npm cache, yarn cache, node_modules
-- **Homebrew** — Cache, old versions
-- **Browsers** — Safari, Chrome, Firefox caches
-- **System** — Icon services, font caches, logs
-- **Time Machine** — Local snapshots
-- **Package Managers** — pip, cargo, go module caches
+- **Homebrew** — Download cache, old formulae/casks
+- **Node.js** — npm cache, yarn cache, pnpm store *(CLI alpha)*
+- **Docker** — Stopped containers, dangling images, system prune *(app only)*
+- **Browsers** — Safari, Chrome, Firefox caches *(app only)*
+- **System** — Icon services, font caches, logs *(app only)*
 
 ### Process Management
 - **Top Processes** — View and sort by memory or CPU
@@ -143,6 +141,86 @@ On first launch, Pulse will:
 - **Full Disk Access** — Enables deeper security scans (Settings → Privacy & Security)
 - **Accessibility** — Enables accessibility permission detection (Settings → Privacy & Security)
 - **Notifications** — Enables memory threshold alerts
+
+---
+
+## Pulse CLI (Alpha)
+
+Pulse includes a command-line interface for system cleanup. This is the **alpha** release — only three profiles are supported.
+
+### Build
+
+```bash
+swift build
+```
+
+### Commands
+
+```bash
+# Scan all profiles
+pulse analyze
+
+# Preview cleanup (dry run)
+pulse clean --dry-run
+
+# Preview cleanup for a specific profile
+pulse clean --profile xcode --dry-run
+
+# Execute cleanup (requires typing "yes" to confirm)
+pulse clean --profile xcode --apply
+```
+
+### Supported Profiles
+
+| Profile | What it cleans | Method |
+|---------|---------------|--------|
+| `xcode` | DerivedData, Archives, DeviceSupport, Simulators | File deletion |
+| `homebrew` | Download cache, old formulae/casks | `brew cleanup` |
+| `node` | npm cache, Yarn cache, pnpm store | File deletion |
+
+### What Pulse Will NOT Touch
+
+- **Project-local files**: `node_modules` in your projects is never scanned
+- **System-critical paths**: `/System`, `/usr`, `/bin`, `/sbin` are protected
+- **User data**: `~/Documents`, `~/Desktop`, `~/Downloads` are protected
+- **App bundles**: `.app` files are never deleted
+- **Other profiles**: Docker, browser caches, system logs, Bun, pip, Go, Cargo — deliberately excluded in this alpha
+
+### Sample Output
+
+```
+$ pulse analyze
+Scanning for cleanup candidates...
+
+Cleanup Analysis
+Total reclaimable: 2.1 GB across 2 item(s)
+
+Item        Size    Priority    Profile
+----------------------------------------------
+npm cache   1.3 GB  Medium      node
+pnpm store  773 MB  Medium      node
+
+Warning: Removes cached packages — reinstall may re-download
+
+Run 'pulse clean --dry-run' to preview cleanup.
+```
+
+### Known Limitations
+
+1. **Only 3 profiles**: Xcode, Homebrew, Node. Docker, browser, system cleanup are not yet implemented.
+2. **No scripting mode**: `--apply` requires interactive "yes" confirmation. No `--yes` or `--force` flag yet.
+3. **Homebrew may show "Nothing to clean"**: If Homebrew caches are below the 50 MB threshold, this is expected.
+4. **Output goes to stdout only**: No JSON, XML, or file output yet.
+5. **Version is hardcoded**: `--version` shows "0.1.0-alpha" regardless of git tag.
+
+### Feedback
+
+If you're testing the alpha, please report:
+- Whether install and build worked on your machine
+- Whether the output was clear
+- How much reclaimable space it found
+- Anything that confused you
+- Whether you trusted it enough to run `--apply`
 
 ---
 

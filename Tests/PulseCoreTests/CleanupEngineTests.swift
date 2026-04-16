@@ -135,7 +135,8 @@ final class CleanupEngineTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 10)
 
@@ -164,7 +165,8 @@ final class CleanupEngineTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 1)
 
@@ -191,7 +193,8 @@ final class CleanupEngineTests: XCTestCase {
                 isDestructive: false,
                 requiresAppClosed: false,
                 appName: nil,
-                warningMessage: nil
+                warningMessage: nil,
+                profile: .xcode
             )
         ], totalSizeMB: 1)
 

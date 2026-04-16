@@ -76,7 +76,8 @@ public struct NodeEngine {
                     appName: nil,
                     warningMessage: cache.warningMessage,
                     priority: .medium,
-                    action: .file
+                    action: .file,
+                    profile: .node
                 ))
             }
         }

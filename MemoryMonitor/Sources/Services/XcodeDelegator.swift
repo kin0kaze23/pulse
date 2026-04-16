@@ -40,7 +40,8 @@ struct XcodeDelegator {
             requiresAppClosed: item.requiresAppClosed,
             appName: item.appName,
             warningMessage: item.warningMessage,
-            priority: mapPriorityToCore(item.priority)
+            priority: mapPriorityToCore(item.priority),
+            profile: .xcode
         )
         let plan = PulseCore.CleanupPlan(items: [coreItem], totalSizeMB: item.sizeMB)
         let config = CleanupConfig(profiles: [.xcode], excludedPaths: excludedPaths)
@@ -60,7 +61,8 @@ struct XcodeDelegator {
             requiresAppClosed: core.requiresAppClosed,
             appName: core.appName,
             warningMessage: core.warningMessage,
-            priority: mapPriorityToApp(core.priority)
+            priority: mapPriorityToApp(core.priority),
+            profile: core.profile
         )
     }
 

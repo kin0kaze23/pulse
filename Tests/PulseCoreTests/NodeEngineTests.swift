@@ -161,7 +161,8 @@ final class NodeRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .node
             )
         ], totalSizeMB: 10)
 
@@ -185,7 +186,8 @@ final class NodeRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .node
             )
         ], totalSizeMB: 500)
 
@@ -212,7 +214,8 @@ final class NodeRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .node
             )
         ], totalSizeMB: 500)
 
@@ -233,7 +236,8 @@ final class NodeRoutingTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .node
             )
         ], totalSizeMB: 500)
 
@@ -288,7 +292,8 @@ final class MixedProfileTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .command("true")
+                action: .command("true"),
+                profile: .homebrew
             ),
             // File-based item (simulating Node)
             .init(
@@ -300,7 +305,8 @@ final class MixedProfileTests: XCTestCase {
                 requiresAppClosed: false,
                 appName: nil,
                 warningMessage: nil,
-                action: .file
+                action: .file,
+                profile: .node
             )
         ], totalSizeMB: 101)
 
