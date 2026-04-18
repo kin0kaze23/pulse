@@ -1,7 +1,7 @@
 # Pulse CLI v0.1.0-alpha
 
 **Release date:** 2026-04-17
-**Branch:** phase0-hardening
+**Tag:** v0.1.0-alpha
 **Build:** `swift build`
 
 ---
@@ -50,9 +50,9 @@ Pulse CLI is a command-line interface for scanning and cleaning system caches on
 ## How to Install
 
 ```bash
-git clone https://github.com/jonathannugroho/pulse.git
+git clone https://github.com/kin0kaze23/pulse.git
 cd pulse
-git checkout phase0-hardening
+git checkout v0.1.0-alpha
 swift build
 .build/debug/pulse --help
 ```
@@ -67,7 +67,7 @@ swift build
 ## Providing Feedback
 
 If you're testing this alpha, please open an issue with the **Alpha Feedback** template:
-https://github.com/jonathannugroho/pulse/issues/new/choose
+https://github.com/kin0kaze23/pulse/issues/new/choose
 
 We want to know:
 - Whether install worked

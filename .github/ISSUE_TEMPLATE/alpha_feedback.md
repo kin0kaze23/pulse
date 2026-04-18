@@ -11,7 +11,7 @@ assignees: []
 - **macOS version:** [e.g., 14.2 Sonoma]
 - **Mac model:** [e.g., MacBook Pro M1 2020]
 - **Build method:** [swift build / other]
-- **Branch:** [main / phase0-hardening]
+- **Tag / commit:** [v0.1.0-alpha / other]
 
 ## What I Did
 

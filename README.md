@@ -2,7 +2,7 @@
 
 > Keep your Mac in flow
 
-[![CI](https://github.com/jonathannugroho/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathannugroho/pulse/actions/workflows/ci.yml)
+[![CI](https://github.com/kin0kaze23/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/kin0kaze23/pulse/actions/workflows/ci.yml)
 ![macOS](https://img.shields.io/badge/macOS-14.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9+-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-blue)
@@ -115,7 +115,7 @@ See [SECURITY.md](SECURITY.md) for the full security policy and threat model.
 ### Install from Source
 
 ```bash
-git clone https://github.com/jonathannugroho/pulse.git
+git clone https://github.com/kin0kaze23/pulse.git
 cd pulse
 swift build -c release
 
