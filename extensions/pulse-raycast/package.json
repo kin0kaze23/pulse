@@ -1,0 +1,43 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "pulse",
+  "title": "Pulse CLI",
+  "description": "System health monitoring and cache cleanup for macOS developers",
+  "icon": "command-icon.png",
+  "version": "0.1.0",
+  "categories": [
+    "Developer Tools",
+    "System"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "analyze",
+      "title": "Analyze System",
+      "description": "Scan for cleanup candidates and reclaimable space",
+      "mode": "view"
+    },
+    {
+      "name": "clean",
+      "title": "Preview Cleanup",
+      "description": "Preview what Pulse CLI would clean (dry run)",
+      "mode": "view"
+    },
+    {
+      "name": "doctor",
+      "title": "Run Doctor",
+      "description": "Verify Pulse installation and environment",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "pulsePath",
+      "title": "Pulse CLI Path",
+      "description": "Path to the pulse binary",
+      "type": "textfield",
+      "default": "/usr/local/bin/pulse",
+      "required": false
+    }
+  ]
+}

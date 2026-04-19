@@ -30,7 +30,8 @@ enum CleanCommand {
             print("  pulse clean --profile <name> --dry-run Preview specific profile")
             print("  pulse clean --profile <name> --apply   Execute cleanup")
             print()
-            print("Supported profiles: xcode, homebrew, node")
+            print("Options:")
+            print("  --json    Output as JSON (stable schema for scripting)")
             return EXIT_SUCCESS
 
         case .missingAction:
@@ -39,8 +40,8 @@ enum CleanCommand {
             print(OutputFormatter.dim("Run 'pulse clean --help' for usage."))
             return EXIT_FAILURE
 
-        case .dryRun(let profile):
-            return runDryRun(profile: profile)
+        case .dryRun(let profile, let json):
+            return runDryRun(profile: profile, json: json)
 
         case .apply(let profile):
             return runApply(profile: profile)
@@ -52,19 +53,25 @@ enum CleanCommand {
     private enum ParsedArgs {
         case help
         case missingAction
-        case dryRun(profile: CleanupProfile?)
+        case dryRun(profile: CleanupProfile?, json: Bool)
         case apply(profile: CleanupProfile?)
     }
 
     private static func parseArgs(_ args: [String]) -> ParsedArgs {
         var profileName: String?
         var action: ParsedArgs?
+        var json = false
+
+        // First pass: detect --json anywhere
+        json = args.contains("--json")
 
         var i = 0
         while i < args.count {
             switch args[i] {
             case "--help", "-h":
                 return .help
+            case "--json":
+                break  // Already handled above
             case "--profile":
                 i += 1
                 if i < args.count {
@@ -72,9 +79,9 @@ enum CleanCommand {
                 }
             case "--dry-run":
                 if let name = profileName, let profile = supportedProfiles[name] {
-                    action = .dryRun(profile: profile)
+                    action = .dryRun(profile: profile, json: json)
                 } else if profileName == nil {
-                    action = .dryRun(profile: nil)
+                    action = .dryRun(profile: nil, json: json)
                 } else {
                     print(OutputFormatter.red("Error: Unsupported profile '\(profileName!)'"))
                     print("Supported profiles: \(supportedProfiles.keys.sorted().joined(separator: ", "))")
@@ -101,7 +108,7 @@ enum CleanCommand {
 
     // MARK: - Dry Run
 
-    private static func runDryRun(profile: CleanupProfile?) -> Int32 {
+    private static func runDryRun(profile: CleanupProfile?, json: Bool) -> Int32 {
         let profiles: Set<CleanupProfile>
         if let profile = profile {
             profiles = [profile]
@@ -113,6 +120,67 @@ enum CleanCommand {
         let engine = CleanupEngine()
         let plan = engine.scan(config: config)
 
+        if json {
+            return outputDryRunJSON(plan, profile: profile)
+        }
+
+        return outputDryRunHuman(plan, profile: profile)
+    }
+
+    // MARK: - Dry Run JSON
+
+    private static func outputDryRunJSON(_ plan: CleanupPlan, profile: CleanupProfile?) -> Int32 {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let output = CleanDryRunJSON(
+            version: 1,
+            command: "clean",
+            mode: "dry-run",
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            profile: profile?.rawValue ?? "all",
+            totalSizeMB: plan.totalSizeMB,
+            itemCount: plan.items.count,
+            items: plan.items.map { item in
+                CleanDryRunItem(
+                    name: item.name,
+                    sizeMB: item.sizeMB,
+                    priority: item.priority.rawValue,
+                    profile: item.profile.rawValue,
+                    path: item.path,
+                    category: item.category.rawValue,
+                    action: actionLabel(item.action),
+                    warning: item.warningMessage,
+                    requiresAppClosed: item.requiresAppClosed
+                )
+            }
+        )
+
+        do {
+            let data = try encoder.encode(output)
+            print(String(data: data, encoding: .utf8)!)
+            return EXIT_SUCCESS
+        } catch {
+            let err = JSONError(error: error.localizedDescription)
+            let data = try! encoder.encode(err)
+            print(String(data: data, encoding: .utf8)!)
+            return EXIT_FAILURE
+        }
+    }
+
+    private static func actionLabel(_ action: CleanupAction) -> String {
+        switch action {
+        case .file:
+            return "delete"
+        case .command(let cmd):
+            return cmd
+        }
+    }
+
+    // MARK: - Dry Run Human
+
+    private static func outputDryRunHuman(_ plan: CleanupPlan, profile: CleanupProfile?) -> Int32 {
         let profileLabel = profile.map { $0.rawValue } ?? "all profiles"
 
         print(OutputFormatter.bold("Dry Run — \(profileLabel)"))
@@ -272,4 +340,30 @@ enum CleanCommand {
 
         return result.failureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE
     }
+}
+
+// MARK: - JSON Schema
+
+/// Stable JSON output schema for `pulse clean --dry-run --json`.
+struct CleanDryRunJSON: Encodable {
+    let version: Int
+    let command: String
+    let mode: String
+    let timestamp: String
+    let profile: String
+    let totalSizeMB: Double
+    let itemCount: Int
+    let items: [CleanDryRunItem]
+}
+
+struct CleanDryRunItem: Encodable {
+    let name: String
+    let sizeMB: Double
+    let priority: String
+    let profile: String
+    let path: String
+    let category: String
+    let action: String
+    let warning: String?
+    let requiresAppClosed: Bool
 }

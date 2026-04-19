@@ -23,6 +23,10 @@ case "analyze":
     exit(AnalyzeCommand.run(Array(arguments.dropFirst())))
 case "clean":
     exit(CleanCommand.run(Array(arguments.dropFirst())))
+case "completion":
+    exit(CompletionCommand.run(Array(arguments.dropFirst())))
+case "doctor":
+    exit(DoctorCommand.run(Array(arguments.dropFirst())))
 case "--help", "-h", "help":
     print(Usage.help())
     exit(EXIT_SUCCESS)

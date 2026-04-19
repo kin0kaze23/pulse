@@ -104,6 +104,8 @@ enum Usage {
           pulse clean --dry-run            Preview cleanup (all profiles)
           pulse clean --profile <name>     Preview cleanup for specific profile
           pulse clean --profile <name> --apply  Execute cleanup
+          pulse doctor                     Verify installation and environment
+          pulse completion <shell>         Generate shell completion scripts
 
         Supported profiles:
           xcode       Xcode caches (DerivedData, Archives, DeviceSupport, Simulators)
@@ -114,14 +116,18 @@ enum Usage {
           --profile <name>  Target a specific cleanup profile
           --dry-run         Show what would be cleaned without deleting
           --apply           Execute the cleanup (requires confirmation)
+          --json            Output as JSON (for scripting/automation)
           --help, -h        Show this help message
           --version, -v     Show version
 
         Examples:
           pulse analyze
+          pulse analyze --json
           pulse clean --dry-run
-          pulse clean --profile xcode --dry-run
+          pulse clean --profile xcode --dry-run --json
           pulse clean --profile homebrew --apply
+          pulse doctor
+          pulse completion zsh > /usr/local/share/zsh/site-functions/_pulse
         """
     }
 }
