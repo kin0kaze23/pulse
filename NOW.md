@@ -1,3 +1,15 @@
+---
+status: active
+task: Phase 0 repo hardening — remaining checklist items
+lane: FAST
+objective: Clean git history, real screenshots in README, reconciled docs, CI workflow verifies SPM and Xcode builds
+blockers: []
+last_decision: 2026-04-14 — Binary removed, personal bundle IDs cleaned, Phase 0 in progress
+next_step: Update CAPABILITY_MATRIX.md, README version/scope, CI workflow (caching + Xcode build), rewrite SafetyFeaturesTests
+rollback: git revert per-commit
+updated: 2026-04-14
+---
+
 # NOW - Pulse
 
 > Updated by /checkpoint. Do not edit manually unless /checkpoint is unavailable.
