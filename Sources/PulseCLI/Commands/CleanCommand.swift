@@ -135,9 +135,6 @@ enum CleanCommand {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let output = CleanDryRunJSON(
-            version: 1,
-            command: "clean",
-            mode: "dry-run",
             timestamp: ISO8601DateFormatter().string(from: Date()),
             profile: profile?.rawValue ?? "all",
             totalSizeMB: plan.totalSizeMB,
@@ -162,19 +159,23 @@ enum CleanCommand {
             print(String(data: data, encoding: .utf8)!)
             return EXIT_SUCCESS
         } catch {
-            let err = JSONError(error: error.localizedDescription)
+            let err = CleanJSONError(error: error.localizedDescription)
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
             return EXIT_FAILURE
         }
     }
 
+    /// Stable action label convention:
+    ///   "delete" — file deletion
+    ///   "command:<cmd>" — shell command to run
+    ///   The "command:" prefix allows scripts to split on first ":" to get the command.
     private static func actionLabel(_ action: CleanupAction) -> String {
         switch action {
         case .file:
             return "delete"
         case .command(let cmd):
-            return cmd
+            return "command:\(cmd)"
         }
     }
 
@@ -345,25 +346,55 @@ enum CleanCommand {
 // MARK: - JSON Schema
 
 /// Stable JSON output schema for `pulse clean --dry-run --json`.
+/// schemaVersion follows semver: major changes on incompatible schema updates.
+/// Current: 1.0.0 — initial release.
 struct CleanDryRunJSON: Encodable {
-    let version: Int
-    let command: String
-    let mode: String
+    /// Schema version, not CLI version. Bumped on incompatible changes.
+    let schemaVersion: String = "1.0.0"
+    let command: String = "clean"
+    let mode: String = "dry-run"
     let timestamp: String
+    /// Which profile was targeted, or "all".
     let profile: String
     let totalSizeMB: Double
     let itemCount: Int
     let items: [CleanDryRunItem]
 }
 
+/// A single cleanup candidate from clean --dry-run.
+/// All fields are stable across schema 1.x minor bumps.
 struct CleanDryRunItem: Encodable {
+    /// Human-readable name of the cleanup item.
     let name: String
+    /// Estimated size in megabytes.
     let sizeMB: Double
+    /// Priority: "High", "Medium", "Low", or "Optional".
     let priority: String
+    /// Profile that owns this item: "xcode", "homebrew", "node", "system".
     let profile: String
+    /// File path to the item (may contain ~ for home directory).
     let path: String
+    /// Category: "Developer", "Browser", "Applications", "System", "Logs".
     let category: String
+    /// Action: "delete" (file deletion) or the shell command to run.
     let action: String
+    /// Warning message, if any. nil means no warning.
     let warning: String?
+    /// Whether this cleanup requires the associated app to be closed.
     let requiresAppClosed: Bool
+}
+
+/// Error response for clean command JSON.
+struct CleanJSONError: Encodable {
+    let schemaVersion: String
+    let command: String
+    let error: String
+    let code: String
+
+    init(error: String) {
+        self.schemaVersion = "1.0.0"
+        self.command = "clean"
+        self.error = error
+        self.code = "ENCODE_FAILED"
+    }
 }

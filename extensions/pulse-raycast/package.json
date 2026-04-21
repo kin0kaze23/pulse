@@ -3,13 +3,13 @@
   "name": "pulse",
   "title": "Pulse CLI",
   "description": "System health monitoring and cache cleanup for macOS developers",
-  "icon": "command-icon.png",
   "version": "0.1.0",
   "categories": [
     "Developer Tools",
     "System"
   ],
   "license": "MIT",
+  "private": true,
   "commands": [
     {
       "name": "analyze",
@@ -39,5 +39,21 @@
       "default": "/usr/local/bin/pulse",
       "required": false
     }
-  ]
+  ],
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "lint": "ray lint"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.0.0",
+    "@raycast/utils": "^2.2.3"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^1.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
 }

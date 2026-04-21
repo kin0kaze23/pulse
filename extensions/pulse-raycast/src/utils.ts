@@ -18,7 +18,7 @@ export interface AnalyzeItem {
 }
 
 export interface AnalyzeJSON {
-  version: number;
+  schemaVersion: string;
   command: string;
   timestamp: string;
   totalSizeMB: number;
@@ -39,7 +39,7 @@ export interface CleanItem {
 }
 
 export interface CleanJSON {
-  version: number;
+  schemaVersion: string;
   command: string;
   mode: string;
   timestamp: string;
@@ -69,7 +69,7 @@ export function getPulsePath(): string {
 
 export async function runPulseCommand(
   pulsePath: string,
-  args: string[]
+  args: string[],
 ): Promise<string> {
   try {
     const { stdout } = await execAsync(`"${pulsePath}" ${args.join(" ")}`);

@@ -1,41 +1,37 @@
-import { List, Action, ActionPanel, useExec, Icon, Color } from "@raycast/api";
-import { getPulsePath, runPulseCommand, DoctorCheck } from "../utils";
+import { List, Action, ActionPanel, Icon, Color } from "@raycast/api";
+import { usePromise } from "@raycast/utils";
+import { runPulseCommand, DoctorCheck } from "../utils";
+import { getPulsePath } from "../utils";
 
-interface DoctorData {
-  checks: DoctorCheck[];
+function doctorChecks(): Promise<DoctorCheck[]> {
+  return runPulseCommand(getPulsePath(), ["doctor", "--json"]).then(
+    (output) => JSON.parse(output).checks as DoctorCheck[],
+  );
 }
 
 export default function DoctorCommand() {
-  const { isLoading, data } = useExec<DoctorData>(
-    "doctor",
-    async () => {
-      const pulsePath = getPulsePath();
-      const output = await runPulseCommand(pulsePath, ["doctor", "--json"]);
-      const json = JSON.parse(output);
-      return { checks: json.checks as DoctorCheck[] };
-    },
-    { executeImmediately: true }
-  );
+  const { data, isLoading } = usePromise(doctorChecks);
+  const checks = (data as DoctorCheck[]) || [];
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <List isLoading={true}>
-        <List.EmptyView icon="🩺" title="Running Pulse Doctor..." />
+        <List.EmptyView icon={Icon.Hammer} title="Running Pulse Doctor..." />
       </List>
     );
   }
 
-  const passCount = data.checks.filter((c) => c.status === "PASS").length;
-  const warnCount = data.checks.filter((c) => c.status === "WARN").length;
-  const failCount = data.checks.filter((c) => c.status === "FAIL").length;
+  const passCount = checks.filter((c) => c.status === "PASS").length;
+  const warnCount = checks.filter((c) => c.status === "WARN").length;
+  const failCount = checks.filter((c) => c.status === "FAIL").length;
 
   return (
-    <List
-      isLoading={false}
-      navigationTitle="Pulse — Doctor"
-      navigationSubtitle={`${passCount} passed, ${warnCount} warnings, ${failCount} failed`}
-    >
-      {data.checks.map((check) => (
+    <List isLoading={false} navigationTitle="Pulse — Doctor">
+      <List.EmptyView
+        icon={{ source: Icon.CheckCircle, tintColor: Color.Green }}
+        title={`${passCount} passed, ${warnCount} warnings, ${failCount} failed`}
+      />
+      {checks.map((check) => (
         <List.Item
           key={check.name}
           icon={{
@@ -48,10 +44,9 @@ export default function DoctorCommand() {
           actions={
             check.recommendation ? (
               <ActionPanel>
-                <Action.ShowToast
-                  title="Recommendation"
-                  message={check.recommendation!}
-                  style={check.status === "FAIL" ? "failure" : "warning"}
+                <Action.CopyToClipboard
+                  title="Copy Recommendation"
+                  content={check.recommendation}
                 />
               </ActionPanel>
             ) : undefined
@@ -84,6 +79,6 @@ function getStatusColor(status: string): Color {
     case "WARN":
       return Color.Yellow;
     default:
-      return Color.Gray;
+      return Color.SecondaryText;
   }
 }

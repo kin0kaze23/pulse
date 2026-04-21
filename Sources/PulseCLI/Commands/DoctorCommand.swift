@@ -211,6 +211,18 @@ enum DoctorCommand {
     }
 
     private static func checkPulseLocation() -> Check {
+        // First check own process path
+        let ownPath = CommandLine.arguments.first ?? ""
+        if !ownPath.isEmpty && FileManager.default.isExecutableFile(atPath: ownPath) {
+            return Check(
+                name: "Pulse location",
+                status: .pass,
+                detail: ownPath,
+                recommendation: nil
+            )
+        }
+
+        // Then check PATH
         let pulsePath = findExecutable("pulse")
         if let path = pulsePath {
             return Check(
@@ -262,6 +274,10 @@ enum DoctorCommand {
 
     // MARK: - Human Output
 
+    /// Exit codes:
+    ///   0 — All checks PASS (healthy)
+    ///   1 — Any check FAIL (needs attention)
+    ///   2 — No failures, but warnings present (works with limitations)
     private static func outputHuman(_ checks: [Check]) -> Int32 {
         print(OutputFormatter.bold("Pulse Doctor"))
         print()
@@ -295,26 +311,28 @@ enum DoctorCommand {
 
         if hasFailures {
             print(OutputFormatter.red("  Pulse needs attention. Fix the FAIL items above."))
-            return EXIT_FAILURE
+            return 1
         } else if hasWarnings {
             print(OutputFormatter.yellow("  Pulse works, but some optional features may be limited."))
+            return 2
         } else {
             print(OutputFormatter.green("  Pulse looks good!"))
+            return 0
         }
-
-        return EXIT_SUCCESS
     }
 
     // MARK: - JSON Output
 
+    /// Exit codes match human mode:
+    ///   0 — All checks PASS
+    ///   1 — Any check FAIL
+    ///   2 — No failures, but warnings present
     private static func outputJSON(_ checks: [Check]) -> Int32 {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let output = DoctorJSON(
-            version: 1,
-            command: "doctor",
             timestamp: ISO8601DateFormatter().string(from: Date()),
             checks: checks
         )
@@ -322,21 +340,38 @@ enum DoctorCommand {
         do {
             let data = try encoder.encode(output)
             print(String(data: data, encoding: .utf8)!)
-            return EXIT_SUCCESS
         } catch {
-            let err = JSONError(error: error.localizedDescription)
+            let err = DoctorJSONError(error: error.localizedDescription)
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
             return EXIT_FAILURE
         }
+
+        let hasFailures = checks.contains { $0.status == .fail }
+        let hasWarnings = checks.contains { $0.status == .warn }
+
+        if hasFailures { return 1 }
+        if hasWarnings { return 2 }
+        return 0
     }
 }
 
 // MARK: - JSON Schema
 
+/// Stable JSON output schema for `pulse doctor --json`.
+/// schemaVersion follows semver: major changes on incompatible schema updates.
+/// Current: 1.0.0 — initial release.
 struct DoctorJSON: Encodable {
-    let version: Int
-    let command: String
+    /// Schema version, not CLI version. Bumped on incompatible changes.
+    let schemaVersion: String = "1.0.0"
+    let command: String = "doctor"
     let timestamp: String
     let checks: [DoctorCommand.Check]
+}
+
+struct DoctorJSONError: Encodable {
+    let schemaVersion: String = "1.0.0"
+    let command: String = "doctor"
+    let error: String
+    let code: String = "ENCODE_FAILED"
 }

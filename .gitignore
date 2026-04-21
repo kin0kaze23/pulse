@@ -12,3 +12,8 @@ Pulse.app/
 # Doppler
 .doppler.env
 .doppler/
+
+# Node
+node_modules/
+pnpm-lock.yaml
+package-lock.json

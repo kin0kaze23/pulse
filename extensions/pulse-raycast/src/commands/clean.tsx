@@ -1,43 +1,34 @@
-import { List, Action, ActionPanel, useExec } from "@raycast/api";
-import { getPulsePath, runPulseCommand, parseCleanJSON, CleanItem } from "../utils";
+import { List, Action, ActionPanel, Icon } from "@raycast/api";
+import { usePromise } from "@raycast/utils";
+import { runPulseCommand, parseCleanJSON, CleanItem } from "../utils";
+import { getPulsePath } from "../utils";
 
-interface CleanData {
-  items: CleanItem[];
-  totalSizeMB: number;
-  itemCount: number;
-  profile: string;
+function cleanItems(): Promise<CleanItem[]> {
+  return runPulseCommand(getPulsePath(), ["clean", "--dry-run", "--json"]).then(
+    (output) => parseCleanJSON(output).items,
+  );
 }
 
 export default function CleanCommand() {
-  const { isLoading, data, revalidate } = useExec<CleanData>(
-    "clean",
-    async () => {
-      const pulsePath = getPulsePath();
-      const output = await runPulseCommand(pulsePath, ["clean", "--dry-run", "--json"]);
-      const parsed = parseCleanJSON(output);
-      return {
-        items: parsed.items,
-        totalSizeMB: parsed.totalSizeMB,
-        itemCount: parsed.itemCount,
-        profile: parsed.profile,
-      };
-    },
-    { executeImmediately: true }
-  );
+  const { data, isLoading } = usePromise(cleanItems);
+  const items = (data as CleanItem[]) || [];
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <List isLoading={true}>
-        <List.EmptyView icon="🧹" title="Scanning cleanup candidates..." />
+        <List.EmptyView
+          icon={Icon.Trash}
+          title="Scanning cleanup candidates..."
+        />
       </List>
     );
   }
 
-  if (data.items.length === 0) {
+  if (items.length === 0) {
     return (
       <List>
         <List.EmptyView
-          icon="✅"
+          icon={Icon.Checkmark}
           title="Nothing to clean"
           description="All caches are below thresholds."
         />
@@ -45,19 +36,13 @@ export default function CleanCommand() {
     );
   }
 
-  const totalSize =
-    data.totalSizeMB >= 1024
-      ? `${(data.totalSizeMB / 1024).toFixed(1)} GB`
-      : `${Math.round(data.totalSizeMB)} MB`;
-
   return (
     <List
       isLoading={false}
       searchBarPlaceholder="Search cleanup candidates..."
       navigationTitle="Pulse — Preview Cleanup"
-      navigationSubtitle={`${data.itemCount} items · ${totalSize}`}
     >
-      {data.items.map((item) => (
+      {items.map((item) => (
         <List.Item
           key={item.name}
           icon={getActionIcon(item.action)}
@@ -66,21 +51,11 @@ export default function CleanCommand() {
           keywords={[item.profile, item.category, item.priority]}
           actions={
             <ActionPanel>
-              <Action.CopyToClipboard
-                title="Copy Path"
-                content={item.path}
-              />
+              <Action.CopyToClipboard title="Copy Path" content={item.path} />
               <Action.OpenInBrowser
                 title="Open in Finder"
                 url={`file://${expandTilde(item.path)}`}
               />
-              {item.warning && (
-                <Action.ShowToast
-                  title="Warning"
-                  message={item.warning}
-                  style="warning"
-                />
-              )}
             </ActionPanel>
           }
         />
@@ -89,11 +64,11 @@ export default function CleanCommand() {
   );
 }
 
-function getActionIcon(action: string): string {
+function getActionIcon(action: string): Icon {
   if (action.startsWith("command:")) {
-    return "⚙️";
+    return Icon.Gear;
   }
-  return "🗑️";
+  return Icon.Trash;
 }
 
 function formatSize(mb: number): string {

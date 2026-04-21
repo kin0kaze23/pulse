@@ -88,8 +88,6 @@ enum AnalyzeCommand {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let output = AnalyzeJSON(
-            version: 1,
-            command: "analyze",
             timestamp: ISO8601DateFormatter().string(from: Date()),
             totalSizeMB: plan.totalSizeMB,
             itemCount: plan.items.count,
@@ -112,17 +110,20 @@ enum AnalyzeCommand {
             print(String(data: data, encoding: .utf8)!)
             return EXIT_SUCCESS
         } catch {
-            let err = JSONError(error: error.localizedDescription)
+            let err = JSONError(command: "analyze", error: error.localizedDescription, code: "ENCODE_FAILED")
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
             return EXIT_FAILURE
         }
     }
 
+    /// Stable action label convention (shared across all commands):
+    ///   "delete" — file deletion
+    ///   "command:<cmd>" — shell command to run
     private static func actionLabel(_ action: CleanupAction) -> String {
         switch action {
         case .file:
-            return "file"
+            return "delete"
         case .command(let cmd):
             return "command:\(cmd)"
         }
@@ -132,28 +133,49 @@ enum AnalyzeCommand {
 // MARK: - JSON Schema
 
 /// Stable JSON output schema for `pulse analyze --json`.
-/// Version is bumped when the schema changes incompatibly.
+/// schemaVersion follows semver: major changes on incompatible schema updates.
+/// Current: 1.0.0 — initial release.
 struct AnalyzeJSON: Encodable {
-    let version: Int
-    let command: String
+    /// Schema version, not CLI version. Bumped on incompatible changes.
+    let schemaVersion: String = "1.0.0"
+    let command: String = "analyze"
     let timestamp: String
     let totalSizeMB: Double
     let itemCount: Int
     let items: [AnalyzeItem]
 }
 
+/// A single cleanup candidate from analyze.
+/// All fields are stable across schema 1.x minor bumps.
 struct AnalyzeItem: Encodable {
+    /// Human-readable name of the cleanup item.
     let name: String
+    /// Estimated size in megabytes.
     let sizeMB: Double
+    /// Priority: "High", "Medium", "Low", or "Optional".
     let priority: String
+    /// Profile that owns this item: "xcode", "homebrew", "node", "system".
     let profile: String
+    /// File path to the item (may contain ~ for home directory).
     let path: String
+    /// Category: "Developer", "Browser", "Applications", "System", "Logs".
     let category: String
+    /// Action: "delete" (file deletion) or "command:<cmd>" (run shell command).
     let action: String
+    /// Warning message, if any. nil means no warning.
     let warning: String?
 }
 
 struct JSONError: Encodable {
-    let version: Int = 1
+    let schemaVersion: String
+    let command: String
     let error: String
+    let code: String
+
+    init(command: String, error: String, code: String) {
+        self.schemaVersion = "1.0.0"
+        self.command = command
+        self.error = error
+        self.code = code
+    }
 }
