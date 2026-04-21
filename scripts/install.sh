@@ -135,22 +135,22 @@ setup_repo() {
     local clone_dir="$HOME/.pulse-cli"
 
     if [ -d "$clone_dir/.git" ]; then
-        info "Updating existing Pulse CLI source..."
+        info "Updating existing Pulse CLI source..." >&2
         cd "$clone_dir"
         git fetch --tags
         if git checkout "$TAG" 2>/dev/null; then
-            info "Checked out tag: $TAG"
+            info "Checked out tag: $TAG" >&2
         else
-            warn "Tag $TAG not found, using latest main"
+            warn "Tag $TAG not found, using latest main" >&2
             git checkout main 2>/dev/null || git checkout master
         fi
         git pull --rebase 2>/dev/null || true
     else
-        info "Cloning Pulse CLI..."
+        info "Cloning Pulse CLI..." >&2
         if git clone --depth 1 --branch "$TAG" "$REPO_URL" "$clone_dir" 2>/dev/null; then
-            info "Cloned tag: $TAG"
+            info "Cloned tag: $TAG" >&2
         else
-            warn "Tag $TAG not found, cloning main branch"
+            warn "Tag $TAG not found, cloning main branch" >&2
             git clone --depth 1 "$REPO_URL" "$clone_dir"
         fi
         cd "$clone_dir"
@@ -164,21 +164,21 @@ build_cli() {
     local repo_dir="$1"
     cd "$repo_dir"
 
-    info "Building Pulse CLI (release mode)..."
-    swift build --target PulseCLI --target PulseCore -c release
+    info "Building Pulse CLI (release mode)..." >&2
+    swift build --target PulseCLI --target PulseCore -c release >&2
 
     # Find the binary — SPM names it after the product, not the target
     local binary
-    binary=$(find "$repo_dir/.build/release" -maxdepth 1 -type f -name "pulse" -o -name "PulseCLI" | head -1)
+    binary=$(find "$repo_dir/.build/release" -maxdepth 1 -type f \( -name "pulse" -o -name "PulseCLI" \) | head -1)
 
     if [ ! -f "$binary" ]; then
-        error "Build succeeded but binary not found in .build/release/"
-        error "Contents:"
-        ls -la "$repo_dir/.build/release/" 2>/dev/null || true
+        error "Build succeeded but binary not found in .build/release/" >&2
+        error "Contents:" >&2
+        ls -la "$repo_dir/.build/release/" 2>/dev/null || true >&2
         exit 1
     fi
 
-    info "Binary: $binary"
+    info "Binary: $binary" >&2
     echo "$binary"
 }
 
