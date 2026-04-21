@@ -165,11 +165,10 @@ build_cli() {
     cd "$repo_dir"
 
     info "Building Pulse CLI (release mode)..." >&2
-    swift build --target PulseCLI --target PulseCore -c release >&2
+    swift build --product pulse -c release >&2
 
-    # Find the binary — SPM names it after the product, not the target
-    local binary
-    binary=$(find "$repo_dir/.build/release" -maxdepth 1 -type f \( -name "pulse" -o -name "PulseCLI" \) | head -1)
+    # The binary is named after the product
+    local binary="$repo_dir/.build/release/pulse"
 
     if [ ! -f "$binary" ]; then
         error "Build succeeded but binary not found in .build/release/" >&2
