@@ -127,6 +127,7 @@ jobs:
           formula-path: Formula/pulse.rb
           tag-name: ${{ github.ref_name }}
           download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/pulse-universal.zip
+          homebrew-tap: kin0kaze23/homebrew-pulse
           commit-message: |
             {{formulaName}} {{version}}
 
