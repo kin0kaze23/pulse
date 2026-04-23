@@ -4,10 +4,10 @@ task: External alpha launch with 10–15 macOS developers
 lane: FAST
 objective: Validate install trust, dry-run usage, and space reclaimed in controlled alpha
 blockers: []
-last_decision: 2026-04-23 — Release integrity verified, v0.2.1 is canonical
+last_decision: 2026-04-24 — Public repo polish complete, v0.2.1 ready on main
 next_step: Launch external alpha, hold scope 1 week, collect feedback
 rollback: git revert per-commit
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # NOW - Pulse
@@ -24,6 +24,7 @@ active
 Build: PASS (0 errors, 0 warnings)
 Test: PASS (85 tests, 0 failures — PulseCoreTests + PulseCLITests)
 Release: PASS (v0.2.1, public repo, public tap, public assets)
+Polish: PASS (clean root, CODE_OF_CONDUCT.md, topics, default branch = main)
 
 ## Completed
 
@@ -75,7 +76,17 @@ Release: PASS (v0.2.1, public repo, public tap, public assets)
 - [x] Verified tap formula points to correct release
 - [x] Verified doctor --json exit code semantics
 - [x] Verified JSON action label alignment
-- [x] Produced RELEASE_INTEGRITY_REPORT.md
+
+### Public Repo Polish Pass ✅
+- [x] Renamed `MemoryMonitor/` → `PulseApp/`
+- [x] Removed `vault/`, `.doppler.env`, `.claude/` from public tree
+- [x] Moved internal docs to `docs/internal/` (AGENTS.md, CLAUDE.md, NOW.md, etc.)
+- [x] Moved release notes to `docs/releases/`
+- [x] Moved feature docs to `docs/features/`, guides to `docs/guides/`
+- [x] Added CODE_OF_CONDUCT.md (Contributor Covenant)
+- [x] Set default branch to `main` (was `phase0-hardening`)
+- [x] Added GitHub topics (macos, swift, cli, developer-tools, etc.)
+- [x] Updated README (fixed PulseApp link, removed hardcoded test count)
 
 ## Do Not Start (Until Alpha Feedback)
 
@@ -105,5 +116,5 @@ Release: PASS (v0.2.1, public repo, public tap, public assets)
 
 ---
 
-*Last updated: 2026-04-23*
+*Last updated: 2026-04-24*
 *v0.2.1 — External Alpha Ready*
