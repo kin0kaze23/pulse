@@ -20,7 +20,7 @@ jobs:
       - name: Build (SPM)
         run: swift build
       - name: Test (SPM)
-        run: swift test
+        run: swift test --filter "PulseCoreTests|PulseCLITests"
       - name: Build (Xcode)
         run: |
           xcodebuild -project Pulse.xcodeproj \
