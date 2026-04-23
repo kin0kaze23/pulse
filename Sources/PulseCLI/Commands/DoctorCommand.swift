@@ -323,18 +323,22 @@ enum DoctorCommand {
 
     // MARK: - JSON Output
 
-    /// Exit codes match human mode:
-    ///   0 — All checks PASS
-    ///   1 — Any check FAIL
-    ///   2 — No failures, but warnings present
+    /// JSON mode always exits 0 — status is encoded in the payload.
+    /// Scripts should inspect `checks[].status` and `hasFailures`/`hasWarnings`
+    /// fields to determine health, not the process exit code.
     private static func outputJSON(_ checks: [Check]) -> Int32 {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
+        let hasFailures = checks.contains { $0.status == .fail }
+        let hasWarnings = checks.contains { $0.status == .warn }
+
         let output = DoctorJSON(
             timestamp: ISO8601DateFormatter().string(from: Date()),
-            checks: checks
+            checks: checks,
+            hasFailures: hasFailures,
+            hasWarnings: hasWarnings
         )
 
         do {
@@ -344,15 +348,10 @@ enum DoctorCommand {
             let err = DoctorJSONError(error: error.localizedDescription)
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
-            return EXIT_FAILURE
         }
 
-        let hasFailures = checks.contains { $0.status == .fail }
-        let hasWarnings = checks.contains { $0.status == .warn }
-
-        if hasFailures { return 1 }
-        if hasWarnings { return 2 }
-        return 0
+        // Always exit 0 in JSON mode — scripts read status from the payload.
+        return EXIT_SUCCESS
     }
 }
 
@@ -367,6 +366,10 @@ struct DoctorJSON: Encodable {
     let command: String = "doctor"
     let timestamp: String
     let checks: [DoctorCommand.Check]
+    /// True if any check returned FAIL. Scripts should use this instead of exit code.
+    let hasFailures: Bool
+    /// True if any check returned WARN (no failures). Scripts should use this instead of exit code.
+    let hasWarnings: Bool
 }
 
 struct DoctorJSONError: Encodable {

@@ -61,7 +61,7 @@ struct HomebrewDelegator {
         }
     }
 
-    private func mapPriorityToApp(_ priority: PulseCore.CleanupPriority) -> Pulse.CleanupPriority {
+    private func mapPriorityToApp(_ priority: PulseCore.CleanupPriority) -> CleanupPriority {
         switch priority {
         case .high: return .high
         case .medium: return .medium

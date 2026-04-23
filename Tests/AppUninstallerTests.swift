@@ -7,7 +7,7 @@
 //
 
 import XCTest
-@testable import Pulse
+@testable import PulseApp
 
 @MainActor
 final class AppUninstallerTests: XCTestCase {

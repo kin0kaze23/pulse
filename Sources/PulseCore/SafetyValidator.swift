@@ -32,12 +32,17 @@ public struct SafetyValidator {
 
         for protected in protectedPaths {
             if lowerPath.hasPrefix(protected + "/") || lowerPath == protected {
-                // Exception: user-writable subdirectories
-                if protected == "/var" && lowerPath.contains("/var/folders") {
-                    continue  // Allow /var/folders cleanup
-                }
-                if protected == "/tmp" && lowerPath.hasPrefix("/var/tmp") {
-                    continue  // Allow /var/tmp cleanup
+                // Exception: user-writable subdirectories under /var that are
+                // safe to clean (caches, temp files, per-user temp storage).
+                // We explicitly allow-list these rather than blanket-allowing
+                // any /var/… path, to prevent symlink-based escapes.
+                let allowedVarSubpaths = [
+                    "/var/folders/",  // per-user temp/cache (macOS managed)
+                    "/var/tmp/",      // system temp files
+                ]
+                if protected == "/var" {
+                    let allowed = allowedVarSubpaths.contains { lowerPath.hasPrefix($0) }
+                    if allowed { continue }
                 }
                 return false
             }

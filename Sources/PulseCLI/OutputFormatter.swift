@@ -8,29 +8,39 @@
 import Foundation
 import PulseCore
 
+// MARK: - TTY Detection
+
+/// True when stdout is connected to a terminal (not piped or redirected).
+private let isTTY = isatty(fileno(stdout)) != 0
+
+/// Colorize a string with the given ANSI code, or return plain text if not a TTY.
+private func styleIfTTY(_ text: String, code: String) -> String {
+    isTTY ? "\u{001B}[\(code)m\(text)\u{001B}[0m" : text
+}
+
 /// Terminal output formatter for CLI commands.
 enum OutputFormatter {
 
     // MARK: - Text Styling
 
     static func bold(_ text: String) -> String {
-        "\u{001B}[1m\(text)\u{001B}[0m"
+        styleIfTTY(text, code: "1")
     }
 
     static func green(_ text: String) -> String {
-        "\u{001B}[32m\(text)\u{001B}[0m"
+        styleIfTTY(text, code: "32")
     }
 
     static func yellow(_ text: String) -> String {
-        "\u{001B}[33m\(text)\u{001B}[0m"
+        styleIfTTY(text, code: "33")
     }
 
     static func red(_ text: String) -> String {
-        "\u{001B}[31m\(text)\u{001B}[0m"
+        styleIfTTY(text, code: "31")
     }
 
     static func dim(_ text: String) -> String {
-        "\u{001B}[2m\(text)\u{001B}[0m"
+        styleIfTTY(text, code: "2")
     }
 
     // MARK: - Helpers
@@ -53,6 +63,21 @@ enum OutputFormatter {
 
     static func formatWarning(_ text: String) -> String {
         "\(yellow("  Warning:")) \(text)"
+    }
+
+    // MARK: - JSON Action Labels
+
+    /// Stable action label convention shared across all commands:
+    ///   "delete" — file deletion
+    ///   "command:<cmd>" — shell command to run
+    /// Single source of truth to prevent drift between analyze and clean JSON.
+    static func actionLabel(_ action: CleanupAction) -> String {
+        switch action {
+        case .file:
+            return "delete"
+        case .command(let cmd):
+            return "command:\(cmd)"
+        }
     }
 
     // MARK: - Table
@@ -101,6 +126,8 @@ enum Usage {
 
         Usage:
           pulse analyze                    Scan for cleanup candidates
+          pulse artifacts                  Scan for build artifacts
+          pulse audit                      Scan dev environment issues
           pulse clean --dry-run            Preview cleanup (all profiles)
           pulse clean --profile <name>     Preview cleanup for specific profile
           pulse clean --profile <name> --apply  Execute cleanup
@@ -116,6 +143,7 @@ enum Usage {
           --profile <name>  Target a specific cleanup profile
           --dry-run         Show what would be cleaned without deleting
           --apply           Execute the cleanup (requires confirmation)
+          --yes, -y         Skip confirmation prompt (for CI/CD automation)
           --json            Output as JSON (for scripting/automation)
           --help, -h        Show this help message
           --version, -v     Show version
@@ -123,6 +151,9 @@ enum Usage {
         Examples:
           pulse analyze
           pulse analyze --json
+          pulse artifacts
+          pulse artifacts --apply --yes
+          pulse audit
           pulse clean --dry-run
           pulse clean --profile xcode --dry-run --json
           pulse clean --profile homebrew --apply

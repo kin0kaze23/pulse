@@ -74,9 +74,33 @@ public struct CleanupEngine {
 
             // Validate path safety
             let expandedPath = (item.path as NSString).expandingTildeInPath
+
+            // Re-validate immediately before deletion to close the TOCTOU window.
+            // Between the scan and apply phases the filesystem could change (e.g.,
+            // a symlink could be repointed at a protected directory). We check
+            // both the safety validator AND that the path still exists as expected.
             guard validator.isPathSafeToDelete(expandedPath) else {
                 skipped.append(.init(name: item.name, reason: "Protected path", sizeMB: item.sizeMB))
                 continue
+            }
+
+            // Verify the path still exists and is the same type we scanned.
+            // This prevents a race where a directory becomes a symlink to a
+            // protected location between scan and deletion.
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDirectory) else {
+                skipped.append(.init(name: item.name, reason: "No longer exists", sizeMB: item.sizeMB))
+                continue
+            }
+
+            // Guard against symlink substitution: if the path is a symlink,
+            // resolve it and ensure the resolved target is also safe.
+            if !isDirectory.boolValue {
+                let resolvedPath = URL(fileURLWithPath: expandedPath).resolvingSymlinksInPath().path
+                if resolvedPath != expandedPath && !validator.isPathSafeToDelete(resolvedPath) {
+                    skipped.append(.init(name: item.name, reason: "Symlink resolves to protected path", sizeMB: item.sizeMB))
+                    continue
+                }
             }
 
             // Execute deletion using the configured file operation policy

@@ -1,0 +1,135 @@
+# Pulse CLI Release Workflow
+#
+# Builds a universal macOS binary for the Pulse CLI, uploads it as a
+# GitHub Release artifact, and updates the Homebrew tap formula.
+#
+# Triggered on: push of a version tag (v*), e.g. v0.1.1
+# Required: nothing — no code signing or notarization needed for CLI tools.
+
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Gate: ensure nothing ships broken ──
+  quality-gate:
+    name: Quality Gate
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test --filter "PulseCoreTests|PulseCLITests"
+
+  # ── Build: universal macOS binary ──
+  build:
+    name: Build CLI
+    runs-on: macos-14
+    needs: quality-gate
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ matrix.arch }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.arch }}-spm-
+
+      - name: Build ${{ matrix.arch }} binary
+        run: swift build --product pulse -c release --arch ${{ matrix.arch }}
+
+      - name: Archive binary
+        run: |
+          mkdir -p dist
+          cp .build/release/pulse dist/pulse-${{ matrix.arch }}
+          cd dist
+          zip pulse-${{ matrix.arch }}.zip pulse-${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-${{ matrix.arch }}
+          path: dist/pulse-${{ matrix.arch }}.zip
+          retention-days: 30
+
+  # ── Release: publish binaries + update tap ──
+  release:
+    name: Publish Release
+    runs-on: macos-14
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: pulse-arm64
+          path: dist
+
+      - name: Download x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: pulse-x86_64
+          path: dist
+
+      - name: Extract binaries
+        run: |
+          cd dist
+          unzip -o pulse-arm64.zip
+          unzip -o pulse-x86_64.zip
+          chmod +x pulse-arm64 pulse-x86_64
+
+      - name: Create universal binary
+        run: |
+          cd dist
+          lipo -create -output pulse pulse-arm64 pulse-x86_64
+          chmod +x pulse
+          zip pulse-universal.zip pulse
+          echo "SHA256=$(shasum -a 256 pulse-universal.zip | cut -d' ' -f1)" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/pulse-arm64.zip
+            dist/pulse-x86_64.zip
+            dist/pulse-universal.zip
+          generate_release_notes: true
+          draft: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Tap
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: pulse
+          formula-path: Formula/pulse.rb
+          tag-name: ${{ github.ref_name }}
+          download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/pulse-universal.zip
+          commit-message: |
+            {{formulaName}} {{version}}
+
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.TAP_TOKEN }}

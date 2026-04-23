@@ -1,5 +1,5 @@
 import XCTest
-@testable import Pulse
+@testable import PulseApp
 
 /// Integration tests for safety-critical features.
 /// Tests the ACTUAL implementation in ComprehensiveOptimizer and StorageAnalyzer,

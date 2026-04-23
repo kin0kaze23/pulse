@@ -1,68 +1,106 @@
 #!/usr/bin/env bash
 #
 # Pulse CLI installer
-# Usage: curl -sL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/install.sh | bash
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/install.sh | bash -s -- --yes
 #
-# This script:
-# 1. Checks prerequisites (Swift toolchain, git)
-# 2. Detects architecture (Apple Silicon vs Intel)
-# 3. Selects the best install directory
-# 4. Clones or updates the Pulse repo
-# 5. Builds the CLI
-# 6. Installs the binary
+# Options:
+#   --yes, -y       Non-interactive mode (auto-upgrade if existing install found)
+#   --tag <version> Install a specific version instead of the latest tag
+#   --prefix <dir>  Install binary to a custom directory
 #
-# Uninstall: pulse uninstall
-#   Or run: curl -sL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/uninstall.sh | bash
+# Uninstall:
+#   curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/uninstall.sh | bash
 #
 
 set -euo pipefail
 
 # Configuration
 REPO_URL="https://github.com/kin0kaze23/pulse.git"
-TAG="v0.1.0-alpha"
+DEFAULT_TAG="v0.1.0-alpha"
+TAG=""
+PREFIX=""
+YES_MODE=false
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BOLD='\033[1m'
-NC='\033[0m'
+# Colors (only when stdout is a TTY)
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    BOLD='\033[1m'
+    NC='\033[0m'
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BOLD=''
+    NC=''
+fi
 
-info() { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*"; }
+info()    { echo -e "${GREEN}[INFO]${NC} $*" >&2; }
+warn()    { echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
+error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+header()  { echo -e "${BOLD}$*${NC}" >&2; }
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --yes|-y)   YES_MODE=true; shift ;;
+        --tag)      TAG="$2"; shift 2 ;;
+        --prefix)   PREFIX="$2"; shift 2 ;;
+        *)          warn "Unknown argument: $1"; shift ;;
+    esac
+done
+TAG="${TAG:-$DEFAULT_TAG}"
 
 # Detect architecture
 detect_arch() {
     local arch
     arch=$(uname -m)
     case "$arch" in
-        arm64)
-            info "Architecture: Apple Silicon (arm64)"
-            ;;
-        x86_64)
-            info "Architecture: Intel (x86_64)"
-            ;;
-        *)
-            warn "Unknown architecture: $arch (continuing anyway)"
-            ;;
+        arm64)    info "Architecture: Apple Silicon (arm64)" ;;
+        x86_64)   info "Architecture: Intel (x86_64)" ;;
+        *)        warn "Unknown architecture: $arch (continuing anyway)" ;;
     esac
 }
 
-# Select the best install directory
-select_install_dir() {
-    # Priority: Homebrew dir → /usr/local/bin → ~/.local/bin
-    # Check if Homebrew pulse exists (upgrade scenario)
-    local brew_pulse=""
-    if command -v brew &> /dev/null; then
-        brew_pulse=$(brew --prefix 2>/dev/null)/bin/pulse
-        if [ -f "$brew_pulse" ]; then
-            echo "$(brew --prefix 2>/dev/null)/bin"
-            return 0
-        fi
+# Try Homebrew install first
+try_brew_install() {
+    if ! command -v brew &> /dev/null; then
+        return 1
     fi
 
-    # Try /usr/local/bin (standard on Intel, may exist on Apple Silicon)
+    # Check if pulse is already available via a tap
+    if brew info pulse 2>/dev/null | grep -q "pulse"; then
+        info "Pulse is available via Homebrew."
+        if $YES_MODE; then
+            info "Installing via brew..."
+            brew install pulse
+            return 0
+        else
+            echo "" >&2
+            read -rp "Install via Homebrew? [Y/n] " response
+            response=${response:-Y}
+            if [[ "$response" =~ ^[Yy] ]]; then
+                info "Installing via brew..."
+                brew install pulse
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+# Select install directory
+select_install_dir() {
+    if [ -n "$PREFIX" ]; then
+        mkdir -p "$PREFIX"
+        echo "$PREFIX"
+        return 0
+    fi
+
+    # Try /usr/local/bin
     if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
         echo "/usr/local/bin"
         return 0
@@ -74,7 +112,7 @@ select_install_dir() {
         return 0
     fi
 
-    # Fallback: ~/.local/bin (user-writable, no sudo needed)
+    # Fallback: ~/.local/bin (user-writable, no sudo)
     local local_bin="$HOME/.local/bin"
     mkdir -p "$local_bin"
     echo "$local_bin"
@@ -84,7 +122,7 @@ select_install_dir() {
 check_prerequisites() {
     if ! command -v swift &> /dev/null; then
         error "Swift toolchain not found."
-        error "Install Xcode or Xcode command line tools:"
+        error "Install Xcode command line tools:"
         error "  xcode-select --install"
         exit 1
     fi
@@ -107,26 +145,20 @@ check_existing() {
         existing_path=$(command -v pulse)
         info "Existing Pulse found: $existing_path"
 
-        # Try to get existing version
         if pulse --version &> /dev/null; then
-            local existing_version
-            existing_version=$(pulse --version 2>/dev/null)
-            info "Current version: $existing_version"
-            info "Target version: $TAG"
-            echo ""
+            info "Current: $(pulse --version 2>/dev/null)"
+            info "Target:  Pulse CLI $TAG"
         fi
 
-        read -rp "Upgrade Pulse? [Y/n] " response
-        response=${response:-Y}
-        case "$response" in
-            [Yy]*)
-                info "Upgrading..."
-                ;;
-            *)
-                info "Installation cancelled."
-                exit 0
-                ;;
-        esac
+        if ! $YES_MODE; then
+            echo "" >&2
+            read -rp "Upgrade Pulse? [Y/n] " response
+            response=${response:-Y}
+            case "$response" in
+                [Yy]*) info "Upgrading..." ;;
+                *)     info "Installation cancelled."; exit 0 ;;
+            esac
+        fi
     fi
 }
 
@@ -135,22 +167,22 @@ setup_repo() {
     local clone_dir="$HOME/.pulse-cli"
 
     if [ -d "$clone_dir/.git" ]; then
-        info "Updating existing Pulse CLI source..." >&2
+        info "Updating existing Pulse CLI source..."
         cd "$clone_dir"
         git fetch --tags
         if git checkout "$TAG" 2>/dev/null; then
-            info "Checked out tag: $TAG" >&2
+            info "Checked out tag: $TAG"
         else
-            warn "Tag $TAG not found, using latest main" >&2
+            warn "Tag $TAG not found, using latest main"
             git checkout main 2>/dev/null || git checkout master
         fi
         git pull --rebase 2>/dev/null || true
     else
-        info "Cloning Pulse CLI..." >&2
+        info "Cloning Pulse CLI..."
         if git clone --depth 1 --branch "$TAG" "$REPO_URL" "$clone_dir" 2>/dev/null; then
-            info "Cloned tag: $TAG" >&2
+            info "Cloned tag: $TAG"
         else
-            warn "Tag $TAG not found, cloning main branch" >&2
+            warn "Tag $TAG not found, cloning main branch"
             git clone --depth 1 "$REPO_URL" "$clone_dir"
         fi
         cd "$clone_dir"
@@ -164,20 +196,16 @@ build_cli() {
     local repo_dir="$1"
     cd "$repo_dir"
 
-    info "Building Pulse CLI (release mode)..." >&2
+    info "Building Pulse CLI (release mode)..."
     swift build --product pulse -c release >&2
 
-    # The binary is named after the product
     local binary="$repo_dir/.build/release/pulse"
-
     if [ ! -f "$binary" ]; then
-        error "Build succeeded but binary not found in .build/release/" >&2
-        error "Contents:" >&2
-        ls -la "$repo_dir/.build/release/" 2>/dev/null || true >&2
+        error "Build succeeded but binary not found: $binary"
         exit 1
     fi
 
-    info "Binary: $binary" >&2
+    info "Binary: $binary"
     echo "$binary"
 }
 
@@ -189,7 +217,6 @@ install_binary() {
 
     info "Installing pulse to $dest..."
 
-    # If destination exists, back it up
     if [ -f "$dest" ]; then
         local backup="${dest}.bak"
         cp "$dest" "$backup"
@@ -206,14 +233,12 @@ install_binary() {
         warn "Binary installed but --version check failed"
     fi
 
-    # Check if install dir is in PATH
+    # PATH check
     if ! echo "$PATH" | tr ':' '\n' | grep -q "^${install_dir}$"; then
         warn "$install_dir is not in your PATH"
         warn "Add it by running:"
         warn "  echo 'export PATH=\"${install_dir}:\$PATH\"' >> ~/.zshrc"
         warn "  source ~/.zshrc"
-    else
-        info "Pulse is in your PATH"
     fi
 }
 
@@ -225,13 +250,12 @@ install_completion() {
     # Zsh completion
     local zsh_dir="/usr/local/share/zsh/site-functions"
     if [ -d "$zsh_dir" ] && [ -w "$zsh_dir" ]; then
-        "$pulse_bin" completion zsh > "$zsh_dir/_pulse" 2>/dev/null
+        "$pulse_bin" completion zsh > "$zsh_dir/_pulse" 2>/dev/null || true
         info "Installed zsh completion: $zsh_dir/_pulse"
     else
-        # User-level completion
         local user_zsh="${ZDOTDIR:-$HOME}/.zsh/completions"
         mkdir -p "$user_zsh"
-        "$pulse_bin" completion zsh > "$user_zsh/_pulse" 2>/dev/null
+        "$pulse_bin" completion zsh > "$user_zsh/_pulse" 2>/dev/null || true
         info "Installed zsh completion: $user_zsh/_pulse"
         info "Add to ~/.zshrc: fpath=(\"$user_zsh\" \$fpath)"
     fi
@@ -239,53 +263,64 @@ install_completion() {
     # Bash completion
     local bash_dir="/etc/bash_completion.d"
     if [ -d "$bash_dir" ] && [ -w "$bash_dir" ]; then
-        "$pulse_bin" completion bash > "$bash_dir/pulse" 2>/dev/null
+        "$pulse_bin" completion bash > "$bash_dir/pulse" 2>/dev/null || true
         info "Installed bash completion: $bash_dir/pulse"
     fi
 }
 
 # Main
 main() {
-    echo ""
-    info "${BOLD}Pulse CLI Installer${NC}"
-    echo "========================================"
-    echo ""
+    header "Pulse CLI Installer"
+    echo "========================================" >&2
+    echo "" >&2
+
+    # Try Homebrew first
+    if try_brew_install; then
+        echo "" >&2
+        echo "========================================" >&2
+        header "Installation complete!"
+        echo "" >&2
+        info "Get started:"
+        info "  pulse --help"
+        info "  pulse analyze"
+        info "  pulse doctor"
+        exit 0
+    fi
 
     detect_arch
     check_prerequisites
     check_existing
-    echo ""
+    echo "" >&2
 
     local install_dir
     install_dir=$(select_install_dir)
     info "Install directory: $install_dir"
-    echo ""
+    echo "" >&2
 
     local repo_dir
     repo_dir=$(setup_repo)
-    echo ""
+    echo "" >&2
 
     local binary
     binary=$(build_cli "$repo_dir")
-    echo ""
+    echo "" >&2
 
     install_binary "$binary" "$install_dir"
-    echo ""
+    echo "" >&2
 
     install_completion "$install_dir"
-    echo ""
+    echo "" >&2
 
-    echo "========================================"
-    info "${BOLD}Installation complete!${NC}"
-    echo ""
+    echo "========================================" >&2
+    header "Installation complete!"
+    echo "" >&2
     info "Get started:"
     info "  pulse --help"
     info "  pulse analyze"
     info "  pulse doctor"
     info ""
     info "Upgrade: run this installer again"
-    info "Uninstall: pulse uninstall"
-    info "  or: curl -sL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/uninstall.sh | bash"
+    info "Uninstall: curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/uninstall.sh | bash"
     echo ""
 }
 

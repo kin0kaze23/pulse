@@ -1,176 +1,68 @@
 # Pulse
 
-> Keep your Mac in flow
+> Safe cleanup and machine audit for macOS developers
 
 [![CI](https://github.com/kin0kaze23/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/kin0kaze23/pulse/actions/workflows/ci.yml)
+[![Release](https://github.com/kin0kaze23/pulse/actions/workflows/release-cli.yml/badge.svg)](https://github.com/kin0kaze23/pulse/actions/workflows/release-cli.yml)
 ![macOS](https://img.shields.io/badge/macOS-14.0+-black?logo=apple)
-![Swift](https://img.shields.io/badge/Swift-5.9+-orange?logo=swift)
+![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-A native macOS menu bar app for system health monitoring and cache cleanup.
+Pulse helps macOS developers **safely reclaim disk space** from developer junk and system bloat, and **audit their machine** for stale tooling, orphaned configs, and broken symlinks.
 
----
-
-## What Pulse Does
-
-Pulse is a **system monitoring dashboard** with **cache cleanup automation** for macOS developers.
-
----
-
-## Features
-
-### System Monitoring
-- **Memory** — Real-time memory pressure, swap usage, and breakdown (mach VM APIs)
-- **CPU** — Per-core utilization, user/system/idle split, top processes
-- **Disk** — Volume usage, pressure gauges, and reclaimable space
-- **Network** — Interface-level send/receive statistics
-- **Battery** — Percentage, cycle count, health, time remaining
-- **Thermal** — Thermal state monitoring and temperature (where available)
-
-### Health Score
-- **A-F Grading** — Composite health score (0-100) based on memory, CPU, disk, and thermal metrics
-- **Trend Tracking** — 24-hour and 7-day trend analysis with delta indicators
-- **Score Breakdown** — Transparent view of what's impacting your score
-- **Actionable Recommendations** — One-click fixes for common issues
-
-### Cache Cleanup
-- **Xcode** — DerivedData, Archives, Device Support, simulators
-- **Homebrew** — Download cache, old formulae/casks
-- **Node.js** — npm cache, yarn cache, pnpm store *(CLI alpha)*
-- **Docker** — Stopped containers, dangling images, system prune *(app only)*
-- **Browsers** — Safari, Chrome, Firefox caches *(app only)*
-- **System** — Icon services, font caches, logs *(app only)*
-
-### Process Management
-- **Top Processes** — View and sort by memory or CPU
-- **Kill Processes** — SIGTERM → SIGKILL with confirmation
-- **Auto-Kill Guard** — Configurable thresholds for runaway processes
-- **Protected Whitelist** — 60+ system processes cannot be killed
-- **Safe-to-Close Badges** — Visual indicators for non-critical processes
-
-### Security Scanner
-- **Persistence Detection** — LaunchAgents, LaunchDaemons, login items, crontab
-- **Browser Extensions** — Safari, Chrome, Firefox extension audit
-- **Real-Time Monitoring** — 60-second threat scan cycle
-- **Permission Diagnostics** — FDA, Accessibility, Apple Events status
-- **Suspicious Process Scanner** — Heuristic analysis of running processes
-
-### Developer Tools
-- **Profile-Based Cleanup** — Pre-configured profiles for Xcode, Docker, Node.js, Homebrew, Python, Rust, Go
-- **Custom Commands** — Add your own cleanup shell commands
-- **Smart Suggestions** — Context-aware cleanup recommendations
-
-### User Experience
-- **Menu Bar App** — Lightweight, always-available monitoring
-- **Vitality Orb** — Animated centerpiece showing overall health at a glance
-- **Bento Grid Dashboard** — 9-tab dashboard with health, memory, system, caches, cleaner, developer, security, history, and disk explorer
-- **Dark Mode Support** — Fully adaptive UI with semantic color tokens
-- **Staggered Animations** — Purposeful, comprehension-improving transitions
-- **Haptic Feedback** — Tactile response for key interactions
-
----
-
-## Screenshots
-
-### Menu Bar
-![Menu bar](screenshots/pulse-01-onboarding.png)
-
-### Dashboard - Health
-![Health dashboard](screenshots/health-trend-01-dashboard.png)
-
-### Dashboard - Security
-![Security status](screenshots/pulse-02-security-status.png)
-
-### Permission Diagnostics
-![Permission diagnostics](screenshots/pulse-04-permissions-view.png)
-
----
-
-## Safety First
-
-Pulse was built with safety as the primary concern. Phase 1 introduced critical safety fixes that protect your system:
-
-- **Protected System Paths** — `/System`, `/usr`, `/bin`, `/sbin`, `/Applications`, and other critical directories are on a deny-list and cannot be deleted
-- **In-Use File Detection** — Files currently open by any process are automatically skipped during cleanup
-- **App Bundle Protection** — `.app` bundles are never deleted
-- **User Data Protection** — `~/Documents`, `~/Desktop`, `~/Downloads` are protected from accidental cleanup
-- **Size Limits** — Maximum 100GB per cleanup operation to prevent runaway deletions
-- **Preview Before Delete** — Every cleanup shows an itemized list with sizes before confirmation
-- **Process Whitelist** — 60+ critical system processes cannot be terminated, even by the auto-kill guard
-- **Graceful Kill Sequence** — SIGTERM first, SIGKILL only after timeout — no brutal force by default
-- **Confirmation Dialogs** — Large cleanups require explicit extra confirmation
-
-See [SECURITY.md](SECURITY.md) for the full security policy and threat model.
+Unlike broad "Mac cleaner" tools, Pulse is **narrow, transparent, and automation-first**. Every operation is preview-first, uses typed actions, and produces stable JSON for scripting.
 
 ---
 
 ## Quick Start
 
-### Requirements
-
-- macOS 14.0 (Sonoma) or later
-- Swift 5.9+ toolchain
-- 50 MB disk space
-
-### Install from Source
+### Install
 
 ```bash
-git clone https://github.com/kin0kaze23/pulse.git
-cd pulse
-swift build -c release
+# Via Homebrew tap (recommended)
+brew tap kin0kaze23/pulse
+brew install pulse
 
-# The built executable is at .build/release/Pulse
-# Drag to Applications folder or run directly
-open .build/release/Pulse
+# Or via install script
+curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/install.sh | bash
 ```
 
-### Run Tests
+### First Run
 
 ```bash
-swift test
+pulse           # Show all commands
+pulse analyze   # Scan for reclaimable space
+pulse artifacts # Find build artifacts in your projects
+pulse audit     # Check dev environment health
+pulse doctor    # Verify your setup
 ```
-
-### First Launch
-
-On first launch, Pulse will:
-1. Open the dashboard window
-2. Add itself to the menu bar
-3. Begin monitoring system metrics
-
-**Optional permissions:**
-- **Full Disk Access** — Enables deeper security scans (Settings → Privacy & Security)
-- **Accessibility** — Enables accessibility permission detection (Settings → Privacy & Security)
-- **Notifications** — Enables memory threshold alerts
 
 ---
 
-## Pulse CLI (Alpha)
+## Commands
 
-Pulse includes a command-line interface for system cleanup. This is the **alpha** release — only three profiles are supported.
+| Command | Description | JSON |
+|---------|-------------|------|
+| `pulse analyze` | Scan tool caches (Xcode, Homebrew, Node) | ✅ |
+| `pulse artifacts` | Scan project build artifacts (node_modules, .build, target, venv, etc.) | ✅ |
+| `pulse audit` | Scan dev environment (stale simulators, orphaned taps, dead symlinks, old toolchains) | ✅ |
+| `pulse clean --dry-run` | Preview what would be cleaned | ✅ |
+| `pulse clean --profile <name> --apply` | Execute cleanup | ✅ |
+| `pulse clean --profile <name> --apply --yes` | Execute cleanup (CI/CD, no prompt) | ✅ |
+| `pulse doctor` | Verify installation and environment | ✅ |
+| `pulse completion <shell>` | Generate shell completion scripts | — |
 
-### Build
+### Auto JSON Detection
+
+When output is piped (not a TTY), Pulse automatically switches to JSON:
 
 ```bash
-swift build
+pulse doctor | jq '.hasFailures'    # false
+pulse analyze | jq '.totalSizeMB'   # 2150.5
+pulse audit | jq '.criticalCount'   # 0
 ```
 
-### Commands
-
-```bash
-# Scan all profiles
-pulse analyze
-
-# Preview cleanup (dry run)
-pulse clean --dry-run
-
-# Preview cleanup for a specific profile
-pulse clean --profile xcode --dry-run
-
-# Execute cleanup (requires typing "yes" to confirm)
-pulse clean --profile xcode --apply
-```
-
-### Supported Profiles
+### Cleanup Profiles
 
 | Profile | What it cleans | Method |
 |---------|---------------|--------|
@@ -178,239 +70,106 @@ pulse clean --profile xcode --apply
 | `homebrew` | Download cache, old formulae/casks | `brew cleanup` |
 | `node` | npm cache, Yarn cache, pnpm store | File deletion |
 
+### Artifact Types (16 supported)
+
+| Artifact | Tool | Typical Size |
+|----------|------|-------------|
+| `node_modules` | npm/yarn/pnpm | 100MB – 5GB |
+| `.build` | SwiftPM | 50MB – 2GB |
+| `target` | Cargo/Rust | 100MB – 3GB |
+| `dist` | Vite/Webpack/Rollup | 10MB – 500MB |
+| `venv` / `.venv` | Python venv | 50MB – 2GB |
+| `__pycache__` | Python | 5MB – 200MB |
+| `.dart_tool` | Dart/Flutter | 20MB – 500MB |
+| `Pods` | CocoaPods | 100MB – 3GB |
+| `.next` | Next.js | 10MB – 500MB |
+| `.nuxt` | Nuxt.js | 10MB – 500MB |
+| `.parcel-cache` | Parcel | 5MB – 200MB |
+| `elm-stuff` | Elm | 5MB – 100MB |
+| `go-cache` | Go modules | 50MB – 500MB |
+| `bun-cache` | Bun | 20MB – 200MB |
+
 ### What Pulse Will NOT Touch
 
-- **Project-local files**: `node_modules` in your projects is never scanned
+- **Project-local files**: `node_modules` in your active projects is never touched by `pulse clean`
 - **System-critical paths**: `/System`, `/usr`, `/bin`, `/sbin` are protected
 - **User data**: `~/Documents`, `~/Desktop`, `~/Downloads` are protected
 - **App bundles**: `.app` files are never deleted
-- **Other profiles**: Docker, browser caches, system logs, Bun, pip, Go, Cargo — deliberately excluded in this alpha
-
-### Sample Output
-
-```
-$ pulse analyze
-Scanning for cleanup candidates...
-
-Cleanup Analysis
-Total reclaimable: 2.1 GB across 2 item(s)
-
-Item        Size    Priority    Profile
-----------------------------------------------
-npm cache   1.3 GB  Medium      node
-pnpm store  773 MB  Medium      node
-
-Warning: Removes cached packages — reinstall may re-download
-
-Run 'pulse clean --dry-run' to preview cleanup.
-```
-
-### Known Limitations
-
-1. **Only 3 profiles**: Xcode, Homebrew, Node. Docker, browser, system cleanup are not yet implemented.
-2. **No scripting mode**: `--apply` requires interactive "yes" confirmation. No `--yes` or `--force` flag yet.
-3. **Homebrew may show "Nothing to clean"**: If Homebrew caches are below the 50 MB threshold, this is expected.
-4. **Output goes to stdout only**: No JSON, XML, or file output yet.
-5. **Version is hardcoded**: `--version` shows "0.1.0-alpha" regardless of git tag.
-
-### Feedback
-
-If you're testing the alpha, please report:
-- Whether install and build worked on your machine
-- Whether the output was clear
-- How much reclaimable space it found
-- Anything that confused you
-- Whether you trusted it enough to run `--apply`
+- **Docker, browser caches, system logs**: Deliberately excluded — not our scope
 
 ---
 
-## Usage
+## Safety Model
 
-### Menu Bar
+Pulse is designed for **trust over breadth**:
 
-Pulse lives in your menu bar for quick access:
-
-- **Memory %** — Current memory pressure (color-coded)
-- **Click** — Open popover with quick stats and Vitality Orb
-- **Right-click** — Full menu with actions
-
-### Dashboard
-
-The main window has 9 tabs:
-
-| Tab | Purpose |
-|-----|---------|
-| Health | Overview, health score, recommendations |
-| Memory | Detailed memory stats and history |
-| System | CPU, Disk, Network, Battery |
-| Caches | Package manager cache sizes |
-| Cleaner | Process list, cleanup, history |
-| Developer | Dev tool profiles and actions |
-| Security | Persistence scanner |
-| History | Metric charts over time |
-| Disk Explorer | Tree view of disk usage |
+1. **Preview-first**: Dry-run is the default. See exactly what will be deleted before it happens.
+2. **Confirmation required**: `--apply` requires typing "yes" (or use `--yes` for CI).
+3. **Trash-first by default**: Files go to Trash, not permanent deletion.
+4. **Protected paths**: System paths, user data, and app bundles are blocked at the code level.
+5. **Typed actions**: No string-based routing — every cleanup action is a typed enum.
+6. **TOCTOU protection**: Paths are re-validated immediately before deletion to prevent race conditions.
+7. **Symlink guards**: Broken or redirected symlinks are detected and skipped.
+8. **Stable JSON schemas**: Every command documents its schema version for reliable scripting.
 
 ---
+
+## Configuration
+
+Pulse uses `~/.config/pulse/config.json` with safe defaults:
+
+```json
+{
+  "artifactScanPaths": ["~/Developer", "~/GitHub", "~/Projects"],
+  "artifactMinAgeDays": 7,
+  "artifactMinSizeMB": 100,
+  "excludedPaths": []
+}
+```
+
+All fields are optional — defaults are used if the file doesn't exist.
+
+---
+
+## Architecture
+
+```
+PulseCore        → Pure Swift engine (no SwiftUI, no AppKit, no singletons)
+PulseCLI         → Thin CLI over PulseCore (executable)
+PulseApp         → SwiftUI menu bar app (depends on PulseCore)
+```
+
+Every command outputs stable JSON with `schemaVersion` for reliable automation:
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "command": "analyze",
+  "timestamp": "2026-04-23T09:00:00Z",
+  "totalSizeMB": 2150.5,
+  "itemCount": 4,
+  "items": [...]
+}
+```
+
+---
+
+## PulseApp (macOS Menu Bar)
+
+Pulse also includes a native SwiftUI menu bar app with real-time monitoring, health scoring, and process management. See [MemoryMonitor](MemoryMonitor/) for details.
 
 ---
 
 ## Development
 
-### Build & Run
-
 ```bash
-# Debug build
-swift build
-
-# Release build
-swift build -c release
-
-# Run tests
-swift test
-
-# Run specific tests
-swift test --filter SafetyFeaturesTests
+swift build          # Build everything
+swift test           # Run all tests (85 passing)
+swift run pulse      # Run CLI
 ```
-
-### Project Structure
-
-```
-Pulse/
-├── MemoryMonitor/Sources/
-│   ├── App.swift                 # Main entry, menu bar, windows
-│   ├── Models/                   # Data models and settings
-│   ├── Services/                 # Monitors, scanners, optimizers
-│   ├── Views/                    # SwiftUI views and components
-│   └── Utilities/                # Design system, helpers
-├── Tests/                        # Unit tests
-├── .github/workflows/ci.yml      # CI pipeline
-├── Package.swift
-└── README.md
-```
-
-### Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
-
-### Contributing
-
-Contributions are welcome! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run the test suite: `swift test`
-5. Ensure the build passes: `swift build`
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
-
-**Code Quality Gates:**
-- All PRs must pass `swift build` (typecheck + build)
-- All PRs must pass `swift test` (no new test failures)
-- New features should include tests where applicable
-
-**Areas that need help:**
-- [ ] Xcode project for proper entitlements/signing
-- [ ] Notarization workflow
-- [ ] Sparkle auto-updates
-- [ ] Historical charts (Swift Charts integration)
-- [ ] Disk treemap visualization
-- [ ] More cleanup profiles
-- [ ] Unit test coverage
-
----
-
-## Permissions
-
-Pulse requests minimal permissions:
-
-| Permission | Why | Required? |
-|------------|-----|-----------|
-| **Full Disk Access** | Security scanner can read protected directories | Optional |
-| **Accessibility** | Detect apps with keyboard monitoring | Optional |
-| **Apple Events** | Count browser tabs, manage apps | Optional |
-| **Notifications** | Memory threshold alerts | Optional |
-
-Check permission status in the **Security** tab.
-
----
-
-## Troubleshooting
-
-### Temperature shows 0°C
-
-SMC-based temperature reading may not work on all Mac models, especially Apple Silicon (M1/M2/M3). This is a hardware limitation.
-
-### Security scan shows "Limited detection"
-
-Pulse needs Full Disk Access to read certain system directories. Enable it in System Settings → Privacy & Security → Full Disk Access.
-
-### Login Items scan is incomplete
-
-macOS Sonoma+ moved login items to System Settings, which Pulse cannot read. Check System Settings → General → Login Items manually.
-
-### Docker cleanup fails
-
-Requires Docker CLI at `/usr/local/bin/docker`. Install Docker Desktop or ensure Docker CLI is in PATH.
-
-### Tests crash
-
-Some tests require full app context. Run specific suites:
-```bash
-swift test --filter SafetyFeaturesTests  # Works
-swift test --filter AppSettingsTests     # Works
-```
-
----
-
-## Roadmap
-
-### v0.1 Alpha (Current)
-- Xcode cache cleanup (DerivedData, Archives, Device Support)
-- Homebrew cache cleanup
-- Safety validation (protected paths, preview-first)
-- PulseCore extraction (cleanup engine as standalone library)
-- PulseCLI (4 commands: analyze, clean --dry-run, clean --profile, clean --apply)
-- PulseApp shell over PulseCore
-
-### v0.2 (Planned)
-- Node.js cache cleanup
-- Docker cleanup (granular, not system prune)
-- Browser cache cleanup
-- System log/temp cleanup
-- Health score trends
-
-### Future
-- Scheduled cleanup
-- Auto-updates
-- Additional profiles
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## Acknowledgments
-
-Pulse learns from these open-source projects:
-
-- **[Stats](https://github.com/exelban/stats)** — Menu bar monitoring (MIT)
-- **[Objective-See tools](https://objective-see.com/)** — Security scanning techniques
-- **[mac-cleanup](https://github.com/fwartner/mac-cleanup)** — Cleanup script inspiration
-
----
-
-## Disclaimer
-
-Pulse is provided "as is" without warranty. While safety features prevent accidental deletion of critical files, **all cleanup operations are permanent**. Ensure you have current backups before using cleanup features.
-
-The authors are not responsible for data loss, system instability, or any damages resulting from use of this software.
-
----
-
-*Last updated: April 11, 2026*
-*Version: 0.1.0 (alpha)*
+MIT. See [LICENSE](LICENSE) for details.

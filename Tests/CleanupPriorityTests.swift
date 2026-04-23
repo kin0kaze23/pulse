@@ -6,7 +6,7 @@
 //
 
 import XCTest
-@testable import Pulse
+@testable import PulseApp
 
 final class CleanupPriorityTests: XCTestCase {
 

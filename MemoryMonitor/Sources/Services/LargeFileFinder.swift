@@ -93,12 +93,8 @@ class LargeFileFinder: ObservableObject {
 
                         // Skip symlinks if configured
                         if self.configuration.followSymlinks == false {
-                            do {
-                                let resolvedURL = try url.resolvingSymlinksInPath()
-                                if url.path != resolvedURL.path {
-                                    continue
-                                }
-                            } catch {
+                            let resolvedURL = url.resolvingSymlinksInPath()
+                            if url.path != resolvedURL.path {
                                 continue
                             }
                         }

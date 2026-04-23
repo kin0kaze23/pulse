@@ -151,7 +151,7 @@ public enum CleanupPriority: String, CaseIterable, Codable, Comparable {
 
 /// How a cleanup item should be executed.
 /// Replaces sentinel-string routing (homebrew://) with explicit typed routing.
-public enum CleanupAction: Codable {
+public enum CleanupAction: Codable, Sendable {
     /// Delete files directly via FileOperationPolicy (default).
     case file
     /// Execute a shell command instead of file deletion.

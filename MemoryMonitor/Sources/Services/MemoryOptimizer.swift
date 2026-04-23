@@ -247,10 +247,7 @@ class MemoryOptimizer: ObservableObject {
     private var completionCancellable: AnyCancellable?
     private var scanCancellable: AnyCancellable?
 
-    // MARK: - Type Aliases to Shared Types
-
-    /// Type alias to shared OptimizeResult
-    typealias OptimizeResult = Pulse.OptimizeResult
+    // MARK: - Disk Cleanup
 
     struct DiskCleanupCandidate: Identifiable {
         let id = UUID()

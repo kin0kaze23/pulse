@@ -1,5 +1,5 @@
 import XCTest
-@testable import Pulse
+@testable import PulseApp
 
 // MARK: - Known Issue
 // SmartTriggerMonitorTests crash in xctest due to UNUserNotificationCenter

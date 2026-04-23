@@ -95,7 +95,7 @@ struct NodeDelegator {
         }
     }
 
-    private func mapPriorityToApp(_ priority: PulseCore.CleanupPriority) -> Pulse.CleanupPriority {
+    private func mapPriorityToApp(_ priority: PulseCore.CleanupPriority) -> CleanupPriority {
         switch priority {
         case .high: return .high
         case .medium: return .medium
@@ -104,7 +104,7 @@ struct NodeDelegator {
         }
     }
 
-    private func mapPriorityToCore(_ priority: Pulse.CleanupPriority) -> PulseCore.CleanupPriority {
+    private func mapPriorityToCore(_ priority: CleanupPriority) -> PulseCore.CleanupPriority {
         switch priority {
         case .high: return .high
         case .medium: return .medium

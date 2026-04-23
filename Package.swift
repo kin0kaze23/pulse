@@ -19,15 +19,15 @@ let package = Package(
             dependencies: ["PulseCore"],
             path: "Tests/PulseCoreTests"
         ),
-        // Pulse: Existing app target (depends on PulseCore)
+        // PulseApp: Existing SwiftUI app target (depends on PulseCore)
         .executableTarget(
-            name: "Pulse",
+            name: "PulseApp",
             dependencies: ["PulseCore"],
             path: "MemoryMonitor/Sources"
         ),
         .testTarget(
-            name: "PulseTests",
-            dependencies: ["Pulse"],
+            name: "PulseAppTests",
+            dependencies: ["PulseApp"],
             path: "Tests",
             exclude: ["PulseCoreTests", "PulseCLITests"]
         ),

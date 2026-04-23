@@ -568,7 +568,7 @@ struct MenuBarLiteView: View {
     
     // MARK: - Result Banner
 
-    private func resultBanner(_ result: MemoryOptimizer.OptimizeResult) -> some View {
+    private func resultBanner(_ result: OptimizeResult) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             // Animated success checkmark
             Image(systemName: "checkmark.circle.fill")
@@ -612,7 +612,7 @@ struct MenuBarLiteView: View {
     }
 
     /// Extract category icons from steps
-    private func categoryIcons(from steps: [MemoryOptimizer.OptimizeResult.Step]) -> [String] {
+    private func categoryIcons(from steps: [OptimizeResult.Step]) -> [String] {
         var icons = Set<String>()
         for step in steps where step.success {
             if let category = step.category {
@@ -622,7 +622,7 @@ struct MenuBarLiteView: View {
         return Array(icons).prefix(3).map { $0 }
     }
 
-    private func iconForCategory(_ category: MemoryOptimizer.OptimizeResult.Category) -> String {
+    private func iconForCategory(_ category: OptimizeResult.Category) -> String {
         switch category {
         case .developer: return "chevron.left.forwardslash.chevron.right"
         case .browser: return "globe"

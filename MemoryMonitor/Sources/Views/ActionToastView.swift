@@ -104,7 +104,7 @@ struct ActionToastView: View {
 
     // MARK: - Result State
 
-    private func resultToast(result: MemoryOptimizer.OptimizeResult) -> some View {
+    private func resultToast(result: OptimizeResult) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 ZStack {

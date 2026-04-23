@@ -26,6 +26,11 @@ enum AnalyzeCommand {
         let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node]
         let config = CleanupConfig(profiles: allProfiles)
 
+        if !jsonOutput {
+            print(OutputFormatter.bold("Pulse"))
+            print()
+        }
+
         let engine = CleanupEngine()
         let plan = engine.scan(config: config)
 
@@ -99,8 +104,9 @@ enum AnalyzeCommand {
                     profile: item.profile.rawValue,
                     path: item.path,
                     category: item.category.rawValue,
-                    action: actionLabel(item.action),
-                    warning: item.warningMessage
+                    action: OutputFormatter.actionLabel(item.action),
+                    warning: item.warningMessage,
+                    requiresAppClosed: item.requiresAppClosed
                 )
             }
         )
@@ -114,18 +120,6 @@ enum AnalyzeCommand {
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
             return EXIT_FAILURE
-        }
-    }
-
-    /// Stable action label convention (shared across all commands):
-    ///   "delete" — file deletion
-    ///   "command:<cmd>" — shell command to run
-    private static func actionLabel(_ action: CleanupAction) -> String {
-        switch action {
-        case .file:
-            return "delete"
-        case .command(let cmd):
-            return "command:\(cmd)"
         }
     }
 }
@@ -164,6 +158,8 @@ struct AnalyzeItem: Encodable {
     let action: String
     /// Warning message, if any. nil means no warning.
     let warning: String?
+    /// Whether this cleanup requires the associated app to be closed.
+    let requiresAppClosed: Bool
 }
 
 struct JSONError: Encodable {

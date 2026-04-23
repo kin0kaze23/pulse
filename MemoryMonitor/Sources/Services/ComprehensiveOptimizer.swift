@@ -148,9 +148,6 @@ class ComprehensiveOptimizer: ObservableObject {
 
     // MARK: - Optimize Result (uses shared type)
     
-    /// Type alias to shared OptimizeResult
-    typealias OptimizeResult = Pulse.OptimizeResult
-
     // MARK: - Settings
 
     var settings: AppSettings { AppSettings.shared }

@@ -31,7 +31,8 @@ enum CleanCommand {
             print("  pulse clean --profile <name> --apply   Execute cleanup")
             print()
             print("Options:")
-            print("  --json    Output as JSON (stable schema for scripting)")
+            print("  --json            Output as JSON (stable schema for scripting)")
+            print("  --yes, -y, --force  Skip confirmation prompt (for CI/CD automation)")
             return EXIT_SUCCESS
 
         case .missingAction:
@@ -43,8 +44,8 @@ enum CleanCommand {
         case .dryRun(let profile, let json):
             return runDryRun(profile: profile, json: json)
 
-        case .apply(let profile):
-            return runApply(profile: profile)
+        case .apply(let profile, let force):
+            return runApply(profile: profile, force: force)
         }
     }
 
@@ -54,23 +55,25 @@ enum CleanCommand {
         case help
         case missingAction
         case dryRun(profile: CleanupProfile?, json: Bool)
-        case apply(profile: CleanupProfile?)
+        case apply(profile: CleanupProfile?, force: Bool)
     }
 
     private static func parseArgs(_ args: [String]) -> ParsedArgs {
         var profileName: String?
         var action: ParsedArgs?
         var json = false
+        var force = false
 
-        // First pass: detect --json anywhere
+        // First pass: detect --json and --yes anywhere
         json = args.contains("--json")
+        force = args.contains("--yes") || args.contains("-y") || args.contains("--force")
 
         var i = 0
         while i < args.count {
             switch args[i] {
             case "--help", "-h":
                 return .help
-            case "--json":
+            case "--json", "--yes", "-y", "--force":
                 break  // Already handled above
             case "--profile":
                 i += 1
@@ -89,9 +92,9 @@ enum CleanCommand {
                 }
             case "--apply":
                 if let name = profileName, let profile = supportedProfiles[name] {
-                    action = .apply(profile: profile)
+                    action = .apply(profile: profile, force: force)
                 } else if profileName == nil {
-                    action = .apply(profile: nil)
+                    action = .apply(profile: nil, force: force)
                 } else {
                     print(OutputFormatter.red("Error: Unsupported profile '\(profileName!)'"))
                     print("Supported profiles: \(supportedProfiles.keys.sorted().joined(separator: ", "))")
@@ -124,6 +127,11 @@ enum CleanCommand {
             return outputDryRunJSON(plan, profile: profile)
         }
 
+        if !plan.items.isEmpty {
+            print(OutputFormatter.bold("Pulse"))
+            print()
+        }
+
         return outputDryRunHuman(plan, profile: profile)
     }
 
@@ -147,7 +155,7 @@ enum CleanCommand {
                     profile: item.profile.rawValue,
                     path: item.path,
                     category: item.category.rawValue,
-                    action: actionLabel(item.action),
+                    action: OutputFormatter.actionLabel(item.action),
                     warning: item.warningMessage,
                     requiresAppClosed: item.requiresAppClosed
                 )
@@ -163,19 +171,6 @@ enum CleanCommand {
             let data = try! encoder.encode(err)
             print(String(data: data, encoding: .utf8)!)
             return EXIT_FAILURE
-        }
-    }
-
-    /// Stable action label convention:
-    ///   "delete" — file deletion
-    ///   "command:<cmd>" — shell command to run
-    ///   The "command:" prefix allows scripts to split on first ":" to get the command.
-    private static func actionLabel(_ action: CleanupAction) -> String {
-        switch action {
-        case .file:
-            return "delete"
-        case .command(let cmd):
-            return "command:\(cmd)"
         }
     }
 
@@ -239,7 +234,7 @@ enum CleanCommand {
 
     // MARK: - Apply
 
-    private static func runApply(profile: CleanupProfile?) -> Int32 {
+    private static func runApply(profile: CleanupProfile?, force: Bool) -> Int32 {
         let profiles: Set<CleanupProfile>
         let profileLabel: String
         if let profile = profile {
@@ -261,6 +256,8 @@ enum CleanCommand {
             return EXIT_SUCCESS
         }
 
+        print(OutputFormatter.bold("Pulse"))
+        print()
         print(OutputFormatter.bold("Cleanup Preview — \(profileLabel)"))
         print()
 
@@ -293,20 +290,22 @@ enum CleanCommand {
             }
         }
 
-        // Confirmation
-        print()
-        print(OutputFormatter.yellow("This action will permanently clean \(profileLabel)."))
-        if plan.items.contains(where: { $0.warningMessage != nil }) {
-            print(OutputFormatter.yellow("Some items have warnings — review before proceeding."))
-        }
-        print()
-        print("Type '\(OutputFormatter.bold("yes"))' to confirm: ", terminator: "")
-
-        guard let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              input == "yes" else {
+        // Confirmation (skip if --yes / --force)
+        if !force {
             print()
-            print(OutputFormatter.dim("Cleanup cancelled."))
-            return EXIT_SUCCESS
+            print(OutputFormatter.yellow("This action will permanently clean \(profileLabel)."))
+            if plan.items.contains(where: { $0.warningMessage != nil }) {
+                print(OutputFormatter.yellow("Some items have warnings — review before proceeding."))
+            }
+            print()
+            print("Type '\(OutputFormatter.bold("yes"))' to confirm: ", terminator: "")
+
+            guard let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                  input == "yes" else {
+                print()
+                print(OutputFormatter.dim("Cleanup cancelled."))
+                return EXIT_SUCCESS
+            }
         }
 
         // Execute
@@ -322,13 +321,13 @@ enum CleanCommand {
         } else {
             for step in result.steps where step.success {
                 let size = OutputFormatter.formatSizeMB(step.freedMB)
-                print("  \(OutputFormatter.green("Cleaned:")) \(step.name) (\(size))")
+                print("  \(OutputFormatter.green("✓")) \(step.name) (\(size))")
             }
             for step in result.steps where !step.success {
-                print("  \(OutputFormatter.red("Failed:")) \(step.name)")
+                print("  \(OutputFormatter.red("✗")) \(step.name)")
             }
             for skipped in result.skipped {
-                print("  \(OutputFormatter.yellow("Skipped:")) \(skipped.name) (\(skipped.reason))")
+                print("  \(OutputFormatter.yellow("⊘")) \(skipped.name) (\(skipped.reason))")
             }
         }
 
