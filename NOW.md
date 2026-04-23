@@ -1,11 +1,11 @@
 ---
 status: active
-task: Preparing external alpha launch
+task: External alpha launch with 10–15 macOS developers
 lane: FAST
-objective: Ship v0.2.0 with complete CLI, Homebrew tap, and hardened safety model
-blockers: [TAP_TOKEN secret needed for auto-tap-updates in CI]
-last_decision: 2026-04-23 — Tier 2 complete, ready for release
-next_step: Push v0.2.0 tag to trigger release workflow
+objective: Validate install trust, dry-run usage, and space reclaimed in controlled alpha
+blockers: []
+last_decision: 2026-04-23 — Release integrity verified, v0.2.1 is canonical
+next_step: Launch external alpha, hold scope 1 week, collect feedback
 rollback: git revert per-commit
 updated: 2026-04-23
 ---
@@ -15,7 +15,7 @@ updated: 2026-04-23
 > Updated by /checkpoint. Do not edit manually unless /checkpoint is unavailable.
 
 ## Current Task
-v0.2.0 Release — External Alpha Prep
+External Alpha Launch — 10–15 macOS developers, 1 week scope hold
 
 ## Status
 active
@@ -23,6 +23,7 @@ active
 ## Last Gate
 Build: PASS (0 errors, 0 warnings)
 Test: PASS (85 tests, 0 failures — PulseCoreTests + PulseCLITests)
+Release: PASS (v0.2.1, public repo, public tap, public assets)
 
 ## Completed
 
@@ -51,7 +52,8 @@ Test: PASS (85 tests, 0 failures — PulseCoreTests + PulseCLITests)
 ### Tier 1: Distribution ✅
 - [x] GitHub Actions release workflow (release-cli.yml)
 - [x] Homebrew tap repo created (kin0kaze23/homebrew-pulse)
-- [x] Homebrew formula with SHA256
+- [x] Homebrew formula auto-updates on new releases
+- [x] TAP_TOKEN secret configured for auto-tap updates
 - [x] README updated with brew install instructions
 
 ### Tier 2: Feature Expansion ✅
@@ -65,17 +67,43 @@ Test: PASS (85 tests, 0 failures — PulseCoreTests + PulseCLITests)
 - [x] Fixed LargeFileFinder compiler warnings
 - [x] Zero compiler warnings across entire codebase
 
-## Remaining Before Alpha Launch
+### Release Integrity Pass ✅
+- [x] Made pulse repo public (was private, returning 404)
+- [x] Fixed tap README install command (`brew tap kin0kaze23/pulse`)
+- [x] Fixed release workflow `homebrew-tap` parameter
+- [x] Verified v0.2.1 release assets publicly accessible
+- [x] Verified tap formula points to correct release
+- [x] Verified doctor --json exit code semantics
+- [x] Verified JSON action label alignment
+- [x] Produced RELEASE_INTEGRITY_REPORT.md
 
-### Distribution
-- [ ] Create TAP_TOKEN secret for auto-tap formula updates (needs PAT with write access to homebrew-pulse)
-- [ ] Push v0.2.0 tag to trigger release workflow
+## Do Not Start (Until Alpha Feedback)
 
-## Outstanding Phase 0 Items (Low Priority)
-- [ ] Update CI workflow with Xcode build verification
-- [ ] Rewrite SafetyFeaturesTests to test real implementation
+### Commands
+- [ ] `pulse config` — config file already works, CLI wrapper can wait
+- [ ] `pulse history` — tracking over time
+- [ ] `pulse compare` — before/after comparison
+
+### Phase 3B Audits
+- [ ] `pulse audit startup`
+- [ ] `pulse audit disk-pressure`
+- [ ] `pulse audit persistence`
+
+### Other
+- [ ] Interactive TUI
+- [ ] Live monitoring dashboard
+- [ ] Smart app uninstaller
+
+## Alpha Metrics to Track
+
+1. **Install success rate** — % of testers who can `brew install pulse` without errors
+2. **Dry-run usage** — % who run `--dry-run` before `--apply`
+3. **Trust signals** — Do users feel confident about what will be deleted?
+4. **Confusion points** — Where do users get stuck or misunderstand output?
+5. **Space reclaimed** — How much actual space do users reclaim?
+6. **JSON scripting** — Any users leveraging `--json` output?
 
 ---
 
 *Last updated: 2026-04-23*
-*v0.2.0 Release — Ready to tag*
+*v0.2.1 — External Alpha Ready*
