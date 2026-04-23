@@ -23,7 +23,7 @@ let package = Package(
         .executableTarget(
             name: "PulseApp",
             dependencies: ["PulseCore"],
-            path: "MemoryMonitor/Sources"
+            path: "PulseApp/Sources"
         ),
         .testTarget(
             name: "PulseAppTests",

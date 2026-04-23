@@ -156,7 +156,7 @@ Every command outputs stable JSON with `schemaVersion` for reliable automation:
 
 ## PulseApp (macOS Menu Bar)
 
-Pulse also includes a native SwiftUI menu bar app with real-time monitoring, health scoring, and process management. See [MemoryMonitor](MemoryMonitor/) for details.
+Pulse also includes a native SwiftUI menu bar app with real-time monitoring, health scoring, and process management. See [PulseApp](PulseApp/) for details.
 
 ---
 
@@ -164,7 +164,7 @@ Pulse also includes a native SwiftUI menu bar app with real-time monitoring, hea
 
 ```bash
 swift build          # Build everything
-swift test           # Run all tests (85 passing)
+swift test           # Run all tests
 swift run pulse      # Run CLI
 ```
 
