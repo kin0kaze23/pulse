@@ -9,9 +9,6 @@
 import Foundation
 
 enum BuildVersion {
-    /// Default embedded version for local/dev builds when no CI tag is injected.
-    static let embedded = "dev"
-
     /// Resolve CLI version from git tag in a git checkout.
     /// For release binaries built in CI (where `.git` metadata is not available at runtime),
     /// fall back to the embedded build version generated during the release workflow.
@@ -33,7 +30,7 @@ enum BuildVersion {
             }
         } catch {}
 
-        if embedded != "dev" { return embedded }
+        if EmbeddedBuildVersion.value != "dev" { return EmbeddedBuildVersion.value }
         return "dev"
     }
 
