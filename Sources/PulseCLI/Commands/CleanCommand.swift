@@ -43,8 +43,8 @@ enum CleanCommand {
             print(OutputFormatter.command("--yes, -y, --force", description: "Skip confirmation prompt (for CI/CD automation)"))
             return EXIT_SUCCESS
 
-        case .dryRun(let profile, let json):
-            return runDryRun(profile: profile, json: json)
+        case .dryRun(let profile, let json, let guided):
+            return runDryRun(profile: profile, json: json, guided: guided)
 
         case .apply(let profile, let force):
             return runApply(profile: profile, force: force)
@@ -55,7 +55,7 @@ enum CleanCommand {
 
     private enum ParsedArgs {
         case help
-        case dryRun(profile: CleanupProfile?, json: Bool)
+        case dryRun(profile: CleanupProfile?, json: Bool, guided: Bool)
         case apply(profile: CleanupProfile?, force: Bool)
     }
 
@@ -64,6 +64,7 @@ enum CleanCommand {
         var action: ParsedArgs?
         var json = false
         var force = false
+        let guided = !args.contains("--dry-run") && !args.contains("--apply")
 
         // First pass: detect --json and --yes anywhere
         json = args.contains("--json")
@@ -83,9 +84,9 @@ enum CleanCommand {
                 }
             case "--dry-run":
                 if let name = profileName, let profile = supportedProfiles[name] {
-                    action = .dryRun(profile: profile, json: json)
+                    action = .dryRun(profile: profile, json: json, guided: false)
                 } else if profileName == nil {
-                    action = .dryRun(profile: nil, json: json)
+                    action = .dryRun(profile: nil, json: json, guided: false)
                 } else {
                     print(OutputFormatter.red("Error: Unsupported profile '\(profileName!)'"))
                     print("Supported profiles: \(supportedProfiles.keys.sorted().joined(separator: ", "))")
@@ -110,19 +111,19 @@ enum CleanCommand {
         if let action { return action }
 
         if let name = profileName, let profile = supportedProfiles[name] {
-            return .dryRun(profile: profile, json: json)
+            return .dryRun(profile: profile, json: json, guided: guided)
         } else if let name = profileName {
             print(OutputFormatter.red("Error: Unsupported profile '\(name)'"))
             print("Supported profiles: \(supportedProfiles.keys.sorted().joined(separator: ", "))")
             return .help
         }
 
-        return .dryRun(profile: nil, json: json)
+        return .dryRun(profile: nil, json: json, guided: guided)
     }
 
     // MARK: - Dry Run
 
-    private static func runDryRun(profile: CleanupProfile?, json: Bool) -> Int32 {
+    private static func runDryRun(profile: CleanupProfile?, json: Bool, guided: Bool) -> Int32 {
         let profiles: Set<CleanupProfile>
         if let profile = profile {
             profiles = [profile]
@@ -148,7 +149,7 @@ enum CleanCommand {
             return outputDryRunJSON(plan, profile: profile)
         }
 
-        return outputDryRunHuman(plan, profile: profile)
+        return outputDryRunHuman(plan, profile: profile, guided: guided)
     }
 
     // MARK: - Dry Run JSON
@@ -192,62 +193,206 @@ enum CleanCommand {
 
     // MARK: - Dry Run Human
 
-    private static func outputDryRunHuman(_ plan: CleanupPlan, profile: CleanupProfile?) -> Int32 {
+    private enum InteractiveChoice {
+        case recommended
+        case all
+        case profile(CleanupProfile)
+        case cancel
+    }
+
+    private static func recommendedItems(from items: [CleanupPlan.CleanupItem]) -> [CleanupPlan.CleanupItem] {
+        items.filter {
+            $0.warningMessage == nil && !$0.requiresAppClosed && $0.priority != .low && $0.skipReason == nil
+        }
+    }
+
+    private static func reviewItems(from items: [CleanupPlan.CleanupItem]) -> [CleanupPlan.CleanupItem] {
+        items.filter { item in
+            !(item.warningMessage == nil && !item.requiresAppClosed && item.priority != .low && item.skipReason == nil)
+        }
+    }
+
+    private static func totalSize(of items: [CleanupPlan.CleanupItem]) -> Double {
+        items.reduce(0) { $0 + $1.sizeMB }
+    }
+
+    private static func profileSummary(from items: [CleanupPlan.CleanupItem]) -> String {
+        let grouped = Dictionary(grouping: items, by: { $0.profile.rawValue })
+        return grouped.keys.sorted().map { key in
+            let count = grouped[key]?.count ?? 0
+            return "\(key)(\(count))"
+        }.joined(separator: " · ")
+    }
+
+    private static func renderGroup(title: String, icon: String, items: [CleanupPlan.CleanupItem]) {
+        guard !items.isEmpty else { return }
+        print(OutputFormatter.section(title))
+        for item in items {
+            let size = OutputFormatter.formatSizeMB(item.sizeMB)
+            let detail = item.warningMessage ?? actionDescription(for: item)
+            print(OutputFormatter.item(icon, "\(item.name) — \(size)"))
+            print(OutputFormatter.item(OutputFormatter.dot, OutputFormatter.dim(detail)))
+        }
+    }
+
+    private static func actionDescription(for item: CleanupPlan.CleanupItem) -> String {
+        switch item.action {
+        case .file:
+            return item.requiresAppClosed ? "Close associated app before cleaning" : "Safe file-based cleanup"
+        case .command(let cmd):
+            return cmd
+        }
+    }
+
+    private static func subplan(from items: [CleanupPlan.CleanupItem]) -> CleanupPlan {
+        CleanupPlan(items: items, totalSizeMB: totalSize(of: items))
+    }
+
+    private static func promptInteractiveChoice(plan: CleanupPlan, currentProfile: CleanupProfile?) -> InteractiveChoice {
+        print()
+        print(OutputFormatter.section("Next action"))
+        print(OutputFormatter.item(OutputFormatter.arrow, "Press Enter to clean recommended items"))
+        print(OutputFormatter.item(OutputFormatter.arrow, "Press p to choose a profile"))
+        print(OutputFormatter.item(OutputFormatter.arrow, "Press a to clean everything shown"))
+        print(OutputFormatter.item(OutputFormatter.arrow, "Press q to cancel"))
+        print()
+        print("Choice: ", terminator: "")
+
+        let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
+        switch input {
+        case "": return .recommended
+        case "a": return .all
+        case "p":
+            return promptProfileChoice(currentProfile: currentProfile)
+        default:
+            return .cancel
+        }
+    }
+
+    private static func promptProfileChoice(currentProfile: CleanupProfile?) -> InteractiveChoice {
+        print()
+        print(OutputFormatter.section("Choose profile"))
+        let profiles = supportedProfiles.keys.sorted()
+        for (index, key) in profiles.enumerated() {
+            let suffix = currentProfile?.rawValue == key ? " (current)" : ""
+            print(OutputFormatter.item(OutputFormatter.dot, "[\(index + 1)] \(key)\(suffix)"))
+        }
+        print(OutputFormatter.item(OutputFormatter.dot, "[q] cancel"))
+        print()
+        print("Profile: ", terminator: "")
+
+        let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
+        if input == "q" { return .cancel }
+        if let index = Int(input), profiles.indices.contains(index - 1), let profile = supportedProfiles[profiles[index - 1]] {
+            return .profile(profile)
+        }
+        return .cancel
+    }
+
+    private static func executeInteractive(plan: CleanupPlan, scopeLabel: String, requireStrongConfirmation: Bool) -> Int32 {
+        print()
+        if requireStrongConfirmation {
+            print(OutputFormatter.yellow("This will clean all items shown for \(scopeLabel)."))
+            print(OutputFormatter.dim("Type CLEAN ALL to continue: "), terminator: "")
+            let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard input == "CLEAN ALL" else {
+                print()
+                print(OutputFormatter.dim("Cleanup cancelled."))
+                return EXIT_SUCCESS
+            }
+        }
+
+        print()
+        print(OutputFormatter.bold("Executing cleanup..."))
+        print()
+
+        let profiles = Set(plan.items.map(\.profile))
+        let config = CleanupConfig(profiles: profiles)
+        let result = CleanupEngine().apply(plan: plan, config: config)
+        return outputApplyResult(result)
+    }
+
+    private static func outputApplyResult(_ result: CleanupResult) -> Int32 {
+        if result.steps.isEmpty && result.skipped.isEmpty {
+            print("  No items were cleaned.")
+        } else {
+            for step in result.steps where step.success {
+                let size = OutputFormatter.formatSizeMB(step.freedMB)
+                print("  \(OutputFormatter.green("✓")) \(step.name) (\(size))")
+            }
+            for step in result.steps where !step.success {
+                print("  \(OutputFormatter.red("✗")) \(step.name)")
+            }
+            for skipped in result.skipped {
+                print("  \(OutputFormatter.yellow("⊘")) \(skipped.name) (\(skipped.reason))")
+            }
+        }
+
+        print()
+        if result.totalFreedMB > 0 {
+            print("  \(OutputFormatter.bold("Total freed:")) \(OutputFormatter.green(OutputFormatter.formatSizeMB(result.totalFreedMB)))")
+        } else {
+            print("  \(OutputFormatter.bold("Total freed:")) 0 MB")
+        }
+
+        return result.failureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE
+    }
+
+    private static func outputDryRunHuman(_ plan: CleanupPlan, profile: CleanupProfile?, guided: Bool) -> Int32 {
         let profileLabel = profile.map { $0.rawValue } ?? "all profiles"
 
         print(OutputFormatter.bold("Pulse"))
-        print(OutputFormatter.section("Cleanup Preview — \(profileLabel)"))
-        print()
 
         if plan.items.isEmpty {
+            print(OutputFormatter.section("Cleanup Preview — \(profileLabel)"))
+            print()
             print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
             return EXIT_SUCCESS
         }
 
-        // Table
-        let headers = ["Item", "Size", "Priority", "Action"]
-        let rows = plan.items.map { item -> [String] in
-            let actionText: String
-            switch item.action {
-            case .file:
-                actionText = "delete"
-            case .command(let cmd):
-                actionText = String(cmd.prefix(30))
-            }
-            return [
-                item.name,
-                OutputFormatter.formatSizeMB(item.sizeMB),
-                OutputFormatter.formatPriority(item.priority),
-                actionText,
-            ]
-        }
+        let recommended = recommendedItems(from: plan.items)
+        let review = reviewItems(from: plan.items)
+        let summaryPanel = OutputFormatter.panel(title: "Cleanup Preview — \(profileLabel)", lines: [
+            "Reclaimable now  \(OutputFormatter.formatSizeMB(plan.totalSizeMB))",
+            "Recommended     \(recommended.count) item(s) · \(OutputFormatter.formatSizeMB(totalSize(of: recommended)))",
+            "Review first    \(review.count) item(s) · \(OutputFormatter.formatSizeMB(totalSize(of: review)))",
+            "Profiles        \(profileSummary(from: plan.items))",
+        ])
+        print(summaryPanel)
 
-        print(OutputFormatter.table(headers: headers, rows: rows))
-
-        // Summary
-        print()
-        print("  \(OutputFormatter.bold("Total reclaimable:")) \(OutputFormatter.formatSizeMB(plan.totalSizeMB))")
-        print("  \(OutputFormatter.bold("Items:")) \(plan.items.count)")
-
-        // Warnings
-        let itemsWithWarnings = plan.items.filter { $0.warningMessage != nil }
-        if !itemsWithWarnings.isEmpty {
-            print()
-            for item in itemsWithWarnings {
-                print(OutputFormatter.formatWarning(item.warningMessage!))
-            }
+        renderGroup(title: "Recommended", icon: OutputFormatter.check, items: recommended)
+        if !review.isEmpty {
+            renderGroup(title: "Review before cleaning", icon: OutputFormatter.warn, items: review)
         }
 
         print()
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Review this preview, then run one of the commands below:")))
-        if let profile = profile {
-            print(OutputFormatter.item(OutputFormatter.dot, OutputFormatter.dim("pulse clean --profile \(profile.rawValue) --apply")))
-        } else {
-            print(OutputFormatter.item(OutputFormatter.dot, OutputFormatter.dim("pulse clean --profile <name> --apply")))
-        }
         print(OutputFormatter.safetyFootnote())
 
-        return EXIT_SUCCESS
+        guard guided, isatty(fileno(stdout)) != 0 else {
+            print(OutputFormatter.actionFooter([
+                "Run 'pulse clean --apply --yes' for automation",
+                "Run 'pulse clean --profile <name>' to focus one profile",
+            ]))
+            return EXIT_SUCCESS
+        }
+
+        switch promptInteractiveChoice(plan: plan, currentProfile: profile) {
+        case .recommended:
+            if recommended.isEmpty {
+                print()
+                print(OutputFormatter.item(OutputFormatter.warn, OutputFormatter.yellow("No recommended items available. Choose a profile or clean everything shown.")))
+                return EXIT_SUCCESS
+            }
+            return executeInteractive(plan: subplan(from: recommended), scopeLabel: "recommended items", requireStrongConfirmation: false)
+        case .all:
+            return executeInteractive(plan: plan, scopeLabel: profileLabel, requireStrongConfirmation: true)
+        case .profile(let selectedProfile):
+            return runDryRun(profile: selectedProfile, json: false, guided: true)
+        case .cancel:
+            print()
+            print(OutputFormatter.dim("Cleanup cancelled."))
+            return EXIT_SUCCESS
+        }
     }
 
     // MARK: - Apply

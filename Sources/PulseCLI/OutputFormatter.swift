@@ -203,6 +203,28 @@ enum OutputFormatter {
     static func safetyFootnote() -> String {
         item(info, dim("Pulse never deletes system paths, app bundles, or user documents."))
     }
+
+    static func panel(title: String, lines: [String]) -> String {
+        guard isTTY else {
+            return ([section(title)] + lines).joined(separator: "\n")
+        }
+
+        let content = lines.isEmpty ? [""] : lines
+        let width = max(title.count + 4, content.map { $0.count }.max() ?? 0)
+        let innerWidth = max(width, 28)
+        let topTitle = " \(title) "
+        let topLine = "╭" + topTitle + String(repeating: "─", count: max(0, innerWidth - topTitle.count)) + "╮"
+        let body = content.map { line in
+            let padded = line.padding(toLength: innerWidth, withPad: " ", startingAt: 0)
+            return "│\(padded)│"
+        }
+        let bottom = "╰" + String(repeating: "─", count: innerWidth) + "╯"
+        return ([topLine] + body + [bottom]).joined(separator: "\n")
+    }
+
+    static func actionFooter(_ items: [String]) -> String {
+        items.map { item(arrow, dim($0)) }.joined(separator: "\n")
+    }
 }
 
 // MARK: - Usage
@@ -214,29 +236,38 @@ enum Usage {
         let outputMode = isTTY ? "standard" : "minimal"
         let readiness = "alpha-ready"
 
+        let statusPanel = OutputFormatter.panel(title: "Status", lines: [
+            "Readiness  \(readiness)",
+            "Workspace  \(repo)",
+            "Output     \(outputMode) terminal UI",
+            "Safety     preview-first · protected paths · stable JSON",
+            "Profiles   xcode · homebrew · node · python",
+        ])
+
+        let actionsPanel = OutputFormatter.panel(title: "Recommended next actions", lines: [
+            "1. pulse doctor    Verify setup and permissions",
+            "2. pulse analyze   See reclaimable cache space",
+            "3. pulse clean     Preview safe cleanup by default",
+            "4. pulse artifacts Find project build artifacts",
+        ])
+
+        let commandsPanel = OutputFormatter.panel(title: "Common commands", lines: [
+            "pulse clean                  Default safe preview for all profiles",
+            "pulse clean --profile xcode Preview one cleanup profile",
+            "pulse artifacts --all        Include recently modified projects",
+            "pulse audit                  Check stale machine issues",
+            "pulse doctor --json          Use in scripts or setup automation",
+        ])
+
         return """
         \(OutputFormatter.bold(BuildVersion.cliString()))
         \(OutputFormatter.dim("Safe cleanup and machine audit for macOS developers"))
 
-        \(OutputFormatter.section("Status"))
-        \(OutputFormatter.keyValue("Readiness:", readiness))
-        \(OutputFormatter.keyValue("Workspace:", repo))
-        \(OutputFormatter.keyValue("Output:", outputMode + " terminal UI"))
-        \(OutputFormatter.keyValue("Safety:", "preview-first · protected paths · stable JSON"))
-        \(OutputFormatter.keyValue("Profiles:", "xcode · homebrew · node · python"))
+        \(statusPanel)
 
-        \(OutputFormatter.section("Recommended next actions"))
-        \(OutputFormatter.command("pulse doctor", description: "Verify setup and permissions"))
-        \(OutputFormatter.command("pulse analyze", description: "See reclaimable cache space"))
-        \(OutputFormatter.command("pulse clean", description: "Preview safe cleanup by default"))
-        \(OutputFormatter.command("pulse artifacts", description: "Find project build artifacts"))
+        \(actionsPanel)
 
-        \(OutputFormatter.section("Common commands"))
-        \(OutputFormatter.command("pulse clean", description: "Default safe preview for all profiles"))
-        \(OutputFormatter.command("pulse clean --profile xcode", description: "Preview one cleanup profile"))
-        \(OutputFormatter.command("pulse artifacts --all", description: "Include recently modified projects"))
-        \(OutputFormatter.command("pulse audit", description: "Check stale machine issues"))
-        \(OutputFormatter.command("pulse doctor --json", description: "Use in scripts or setup automation"))
+        \(commandsPanel)
 
         \(OutputFormatter.section("Safety promise"))
         \(OutputFormatter.item(OutputFormatter.check, "Preview-first by default"))
