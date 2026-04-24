@@ -57,6 +57,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Embed release version
+        run: |
+          cat > Sources/PulseCLI/EmbeddedBuildVersion.swift <<'EOF'
+          // Auto-generated during Release CLI workflow.
+          enum EmbeddedBuildVersion {
+              static let value = "${{ github.ref_name }}"
+          }
+          EOF
+
       - name: Cache Swift Package Manager
         uses: actions/cache@v4
         with:
