@@ -6,7 +6,7 @@
 # Pulse Distribution Workflow
 # Builds, signs, and notarizes Pulse for release
 #
-# Trigger: Manual (workflow_dispatch) or Release tag
+# Trigger: Manual only. App distribution is a separate lane from the CLI alpha.
 # Required Secrets:
 #   - DEVELOPER_ID_CERTIFICATE (Base64 encoded)
 #   - DEVELOPER_ID_PASSWORD
@@ -23,9 +23,6 @@ on:
         description: 'Version number (e.g., 1.1.0)'
         required: true
         default: '1.1.0'
-  push:
-    tags:
-      - 'v*'
 
 env:
   PROJECT_NAME: Pulse
