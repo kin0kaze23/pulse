@@ -7,29 +7,6 @@
 
 import Foundation
 
-// MARK: - Version
-
-/// Resolve CLI version from git tag, falling back to a hardcoded default.
-private func cliVersion() -> String {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-    task.arguments = ["describe", "--tags", "--abbrev=0"]
-    task.standardOutput = Pipe()
-    task.standardError = FileHandle.nullDevice
-
-    do {
-        try task.run()
-        task.waitUntilExit()
-        if task.terminationStatus == 0,
-           let data = (task.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile(),
-           let tag = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !tag.isEmpty {
-            return "Pulse CLI \(tag)"
-        }
-    } catch {}
-    return "Pulse CLI v0.2.1"
-}
-
 // MARK: - Banner
 
 /// Print a minimal branded header when pulse runs with no args.
@@ -39,7 +16,7 @@ private func banner() -> String {
     let bold = { (t: String) -> String in isTTY ? "\u{001B}[1m\(t)\u{001B}[0m" : t }
     let dim = { (t: String) -> String in isTTY ? "\u{001B}[2m\(t)\u{001B}[0m" : t }
     let cyan = { (t: String) -> String in isTTY ? "\u{001B}[36m\(t)\u{001B}[0m" : t }
-    let tag = cliVersion().replacingOccurrences(of: "Pulse CLI ", with: "")
+    let tag = BuildVersion.resolved()
     return """
     \(bold("Pulse")) \(cyan(tag))
     \(dim("Safe cleanup and machine audit for macOS developers"))
@@ -87,7 +64,7 @@ case "--help", "-h", "help":
     print(Usage.help())
     exit(EXIT_SUCCESS)
 case "--version", "-v":
-    print(cliVersion())
+    print(BuildVersion.cliString())
     exit(EXIT_SUCCESS)
 default:
     print("Error: Unknown command '\(command)'")

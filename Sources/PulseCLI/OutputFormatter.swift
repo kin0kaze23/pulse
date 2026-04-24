@@ -193,7 +193,7 @@ enum OutputFormatter {
 enum Usage {
     static func help() -> String {
         """
-        \(OutputFormatter.bold("Pulse CLI")) v0.2.1
+        \(OutputFormatter.bold(BuildVersion.cliString()))
 
         Usage:
           pulse analyze                    Scan for cleanup candidates
