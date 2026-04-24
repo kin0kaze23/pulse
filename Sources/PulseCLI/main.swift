@@ -27,7 +27,7 @@ private func cliVersion() -> String {
             return "Pulse CLI \(tag)"
         }
     } catch {}
-    return "Pulse CLI 0.1.0-alpha"
+    return "Pulse CLI v0.2.1"
 }
 
 // MARK: - Banner
@@ -38,9 +38,10 @@ private func banner() -> String {
     let isTTY = isatty(fileno(stdout)) != 0
     let bold = { (t: String) -> String in isTTY ? "\u{001B}[1m\(t)\u{001B}[0m" : t }
     let dim = { (t: String) -> String in isTTY ? "\u{001B}[2m\(t)\u{001B}[0m" : t }
+    let cyan = { (t: String) -> String in isTTY ? "\u{001B}[36m\(t)\u{001B}[0m" : t }
     let tag = cliVersion().replacingOccurrences(of: "Pulse CLI ", with: "")
     return """
-    \(bold("Pulse")) \(dim(tag))
+    \(bold("Pulse")) \(cyan(tag))
     \(dim("Safe cleanup and machine audit for macOS developers"))
     """
 }

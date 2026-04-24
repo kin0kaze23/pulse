@@ -19,11 +19,13 @@ Unlike broad "Mac cleaner" tools, Pulse is **narrow, transparent, and automation
 ### Install
 
 ```bash
-# Via Homebrew tap (recommended)
 brew tap kin0kaze23/pulse
 brew install pulse
+```
 
-# Or via install script
+Or install via script:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/install.sh | bash
 ```
 

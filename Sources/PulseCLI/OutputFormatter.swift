@@ -43,6 +43,21 @@ enum OutputFormatter {
         styleIfTTY(text, code: "2")
     }
 
+    static func cyan(_ text: String) -> String {
+        styleIfTTY(text, code: "36")
+    }
+
+    // MARK: - Icons
+
+    static let check = green("✓")
+    static let cross = red("✗")
+    static let warn = yellow("⚠")
+    static let info = cyan("ℹ")
+    static let arrow = cyan("→")
+    static let dot = dim("•")
+    static let trash = "🗑"
+    static let sparkles = "✨"
+
     // MARK: - Helpers
 
     static func formatSizeMB(_ mb: Double) -> String {
@@ -102,7 +117,7 @@ enum OutputFormatter {
 
         // Separator
         let totalWidth = colWidths.reduce(0) { $0 + $1 + padding }
-        output += String(repeating: "-", count: totalWidth) + "\n"
+        output += String(repeating: "─", count: totalWidth) + "\n"
 
         // Rows
         for row in rows {
@@ -115,6 +130,62 @@ enum OutputFormatter {
 
         return output
     }
+
+    // MARK: - Animated Spinner
+
+    /// Simple animated spinner for long operations.
+    /// Usage:
+    ///   let spinner = OutputFormatter.Spinner(message: "Scanning...")
+    ///   spinner.start()
+    ///   // ... do work ...
+    ///   spinner.stop(success: true)
+    class Spinner {
+        private let message: String
+        private let frames = ["⠋", "", "⠹", "⠸", "⠼", "", "⠦", "⠧", "⠇", ""]
+        private var timer: Timer?
+        private var frameIndex = 0
+        private var startTime: Date?
+
+        init(message: String) {
+            self.message = message
+        }
+
+        func start() {
+            guard isTTY else { print("\(message)"); return }
+            startTime = Date()
+            timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                let frame = self.frames[self.frameIndex % self.frames.count]
+                self.frameIndex += 1
+                let elapsed = Date().timeIntervalSince(self.startTime ?? Date())
+                let output = String(format: "\r%s %s (%.1fs)", frame, self.message, elapsed)
+                fputs(output, stderr)
+                fflush(stderr)
+            }
+            RunLoop.current.add(timer!, forMode: .common)
+        }
+
+        func stop(success: Bool = true) {
+            timer?.invalidate()
+            timer = nil
+            guard isTTY else { return }
+            let elapsed = Date().timeIntervalSince(startTime ?? Date())
+            let icon = success ? OutputFormatter.check : OutputFormatter.cross
+            let output = String(format: "\r%s %s (%.1fs)\n", icon, message, elapsed)
+            fputs(output, stderr)
+            fflush(stderr)
+        }
+    }
+
+    // MARK: - Section Headers
+
+    static func section(_ title: String) -> String {
+        "\n\(bold(title))\n\(String(repeating: "─", count: title.count))"
+    }
+
+    static func item(_ icon: String, _ text: String) -> String {
+        "  \(icon) \(text)"
+    }
 }
 
 // MARK: - Usage
@@ -122,7 +193,7 @@ enum OutputFormatter {
 enum Usage {
     static func help() -> String {
         """
-        \(OutputFormatter.bold("Pulse CLI")) v0.1.0-alpha
+        \(OutputFormatter.bold("Pulse CLI")) v0.2.1
 
         Usage:
           pulse analyze                    Scan for cleanup candidates

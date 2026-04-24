@@ -26,13 +26,18 @@ enum AnalyzeCommand {
         let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node]
         let config = CleanupConfig(profiles: allProfiles)
 
-        if !jsonOutput {
-            print(OutputFormatter.bold("Pulse"))
+        let engine = CleanupEngine()
+        let plan: CleanupPlan
+
+        if jsonOutput {
+            plan = engine.scan(config: config)
+        } else {
+            let spinner = OutputFormatter.Spinner(message: "Scanning for cleanup candidates...")
+            spinner.start()
+            plan = engine.scan(config: config)
+            spinner.stop(success: true)
             print()
         }
-
-        let engine = CleanupEngine()
-        let plan = engine.scan(config: config)
 
         if jsonOutput {
             return outputJSON(plan)
@@ -45,13 +50,12 @@ enum AnalyzeCommand {
 
     private static func outputHuman(_ plan: CleanupPlan) -> Int32 {
         if plan.items.isEmpty {
-            print("  Nothing to clean. All caches are below thresholds.")
+            print()
+            print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
             return EXIT_SUCCESS
         }
 
-        print(OutputFormatter.bold("Scanning for cleanup candidates..."))
-        print()
-        print(OutputFormatter.bold("Cleanup Analysis"))
+        print(OutputFormatter.section("Cleanup Analysis"))
         print(OutputFormatter.dim("Total reclaimable: \(OutputFormatter.formatSizeMB(plan.totalSizeMB)) across \(plan.items.count) item(s)"))
         print()
 
@@ -79,8 +83,8 @@ enum AnalyzeCommand {
 
         // Footer
         print()
-        print(OutputFormatter.dim("Run 'pulse clean --dry-run' to preview cleanup."))
-        print(OutputFormatter.dim("Run 'pulse clean --profile <name> --apply' to execute."))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean --dry-run"))' to preview cleanup.")))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean --profile <name> --apply"))' to execute.")))
 
         return EXIT_SUCCESS
     }
