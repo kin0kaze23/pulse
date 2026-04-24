@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.5] - 2026-04-24
+
+### Added
+- Published Homebrew tap distribution for the CLI alpha
+- Public release assets for arm64, x86_64, and universal macOS binaries
+- Embedded version metadata in release binaries
+
+### Changed
+- Public repo root curated for open-source distribution
+- CLI output polished with clearer install docs, icons, and improved formatting
+- CI narrowed to PulseCore + PulseCLI tests for external distribution reliability
+
+### Fixed
+- Homebrew formula checksum drift
+- Release binary version drift (`--version` now matches shipped tag)
+- Release workflow now embeds the release tag in the actual build job
+- Install script default tag updated to the current release series
+
+---
+
+## [0.2.0] - 2026-04-23
+
+### Added
+- `pulse analyze` for preview-first cleanup analysis
+- `pulse clean` with `--dry-run`, `--apply`, `--yes`, and JSON output
+- `pulse doctor` for environment verification and JSON diagnostics
+- `pulse artifacts` for project artifact scanning
+- `pulse audit` for developer machine audit checks
+- Stable JSON schemas across CLI commands
+- GitHub release workflow and Homebrew tap distribution
+
+### Safety
+- Protected path enforcement for destructive operations
+- Trash-first cleanup behavior by default
+- TOCTOU re-validation before delete
+- Symlink guards to prevent path substitution issues
+
+### Tests
+- PulseCore + PulseCLI safety-critical test coverage established
+
 ### Added
 - Historical metrics service with 24h/7d trend analysis
 - Cleanup confirmation view with itemized preview

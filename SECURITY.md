@@ -8,9 +8,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 1.1.x (pre-release) | ✅ Yes |
-| 1.0.x | ⚠️ Best effort |
-| < 1.0 | ❌ No |
+| 0.2.x (alpha) | ✅ Yes |
+| < 0.2 | ⚠️ Best effort |
 
 ---
 
@@ -20,7 +19,12 @@
 
 ### How to Report
 
-Email: [your-email@example.com] (TODO: Set up dedicated security email)
+Use GitHub's private vulnerability reporting flow for this repository:
+
+- Go to: `Security` → `Advisories` → `Report a vulnerability`
+- Or open: `https://github.com/kin0kaze23/pulse/security/advisories/new`
+
+If GitHub private reporting is unavailable for any reason, contact the maintainer directly via GitHub: `https://github.com/kin0kaze23`
 
 Include:
 - Description of the vulnerability

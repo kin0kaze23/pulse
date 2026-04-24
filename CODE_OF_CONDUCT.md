@@ -59,8 +59,8 @@ Examples of unacceptable behavior include:
 ## Enforcement
 
 * Instances of abusive, harassing, or otherwise unacceptable behavior may be
-  reported to the community leaders responsible for enforcement at
-  support@github.com.
+  reported to the community leaders responsible for enforcement via GitHub:
+  https://github.com/kin0kaze23
  
 * All complaints will be reviewed and investigated promptly and fairly.
 

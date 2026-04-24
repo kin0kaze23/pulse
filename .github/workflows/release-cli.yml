@@ -123,6 +123,9 @@ jobs:
           lipo -create -output pulse pulse-arm64 pulse-x86_64
           chmod +x pulse
           zip pulse-universal.zip pulse
+          shasum -a 256 pulse-arm64.zip > CHECKSUMS.txt
+          shasum -a 256 pulse-x86_64.zip >> CHECKSUMS.txt
+          shasum -a 256 pulse-universal.zip >> CHECKSUMS.txt
           echo "SHA256=$(shasum -a 256 pulse-universal.zip | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Create GitHub Release
@@ -132,6 +135,7 @@ jobs:
             dist/pulse-arm64.zip
             dist/pulse-x86_64.zip
             dist/pulse-universal.zip
+            dist/CHECKSUMS.txt
           generate_release_notes: true
           draft: false
           fail_on_unmatched_files: true

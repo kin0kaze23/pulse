@@ -12,6 +12,9 @@ Pulse helps macOS developers **safely reclaim disk space** from developer junk a
 
 Unlike broad "Mac cleaner" tools, Pulse is **narrow, transparent, and automation-first**. Every operation is preview-first, uses typed actions, and produces stable JSON for scripting.
 
+> **Alpha / pre-release**
+> Pulse is currently in controlled external alpha. Review `--dry-run` output before applying cleanup, and make sure you have a current backup the first time you use destructive commands.
+
 ---
 
 ## Quick Start
