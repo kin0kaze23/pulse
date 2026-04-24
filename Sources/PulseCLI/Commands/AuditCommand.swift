@@ -16,22 +16,34 @@ enum AuditCommand {
         let jsonOutput = args.contains("--json")
 
         if args.contains("--help") || args.contains("-h") {
+            print(BuildVersion.cliString())
+            print()
             print("Usage: pulse audit [--json]")
             print()
-            print("Scan for developer environment maintenance issues:")
-            print("  - Stale Xcode simulators and caches")
-            print("  - Old Xcode Archives")
-            print("  - Orphaned Homebrew taps")
-            print("  - Broken symlinks in developer directories")
-            print("  - Custom Xcode toolchains")
+            print("Scan for developer-machine maintenance issues such as:")
+            print(OutputFormatter.item(OutputFormatter.dot, "stale Xcode simulators and caches"))
+            print(OutputFormatter.item(OutputFormatter.dot, "old Xcode Archives"))
+            print(OutputFormatter.item(OutputFormatter.dot, "orphaned Homebrew taps"))
+            print(OutputFormatter.item(OutputFormatter.dot, "broken symlinks in developer directories"))
+            print(OutputFormatter.item(OutputFormatter.dot, "custom Xcode toolchains"))
             print()
             print("Options:")
-            print("  --json    Output as JSON (auto-enabled when piped)")
+            print(OutputFormatter.command("--json", description: "Output as JSON (auto-enabled when piped)"))
             return EXIT_SUCCESS
         }
 
         let scanner = AuditScanner()
-        let issues = scanner.scan()
+        let issues: [AuditIssue]
+
+        if jsonOutput {
+            issues = scanner.scan()
+        } else {
+            let spinner = OutputFormatter.Spinner(message: "Auditing developer environment...")
+            spinner.start()
+            issues = scanner.scan()
+            spinner.stop(success: true)
+            print()
+        }
 
         if jsonOutput {
             return outputJSON(issues)
@@ -46,13 +58,12 @@ enum AuditCommand {
         if issues.isEmpty {
             print(OutputFormatter.bold("Pulse"))
             print()
-            print(OutputFormatter.green("✓ No issues found. Your developer environment looks good."))
+            print(OutputFormatter.item(OutputFormatter.check, OutputFormatter.green("No issues found. Your developer environment looks good.")))
             return EXIT_SUCCESS
         }
 
         print(OutputFormatter.bold("Pulse"))
-        print()
-        print(OutputFormatter.bold("Developer Environment Audit"))
+        print(OutputFormatter.section("Developer Environment Audit"))
 
         let criticalCount = issues.filter { $0.severity == .critical }.count
         let warningCount = issues.filter { $0.severity == .warning }.count
@@ -99,8 +110,8 @@ enum AuditCommand {
         }
 
         // Footer
-        print(OutputFormatter.dim("Fix critical and warning items to optimize your dev environment."))
-        print(OutputFormatter.dim("Run 'pulse artifacts' to clean project build artifacts."))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Fix critical and warning items first to keep your developer machine healthy.")))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to clean project build artifacts next.")))
 
         return EXIT_SUCCESS
     }

@@ -11,14 +11,15 @@ enum DoctorCommand {
 
     static func run(_ args: [String]) -> Int32 {
         if args.contains("--help") || args.contains("-h") {
+            print(BuildVersion.cliString())
+            print()
             print("Usage: pulse doctor")
             print()
-            print("Verify Pulse installation, toolchain status, and environment.")
-            print("Checks: Swift toolchain, Xcode, Homebrew, package managers,")
-            print("permissions, and disk space.")
+            print("Verify Pulse installation, toolchain status, and environment readiness.")
+            print("Checks Swift, Xcode, Homebrew, package managers, permissions, and disk space.")
             print()
             print("Options:")
-            print("  --json    Output as JSON")
+            print(OutputFormatter.command("--json", description: "Output as JSON"))
             return EXIT_SUCCESS
         }
 
@@ -279,17 +280,19 @@ enum DoctorCommand {
     ///   1 — Any check FAIL (needs attention)
     ///   2 — No failures, but warnings present (works with limitations)
     private static func outputHuman(_ checks: [Check]) -> Int32 {
-        print(OutputFormatter.bold("Pulse Doctor"))
-        print()
+        print(OutputFormatter.bold("Pulse"))
+        print(OutputFormatter.section("Pulse Doctor"))
 
         var hasWarnings = false
         var hasFailures = false
+        var passCount = 0
 
         for check in checks {
             let statusText: String
             switch check.status {
             case .pass:
                 statusText = OutputFormatter.green("[PASS]")
+                passCount += 1
             case .warn:
                 statusText = OutputFormatter.yellow("[WARN]")
                 hasWarnings = true
@@ -309,14 +312,20 @@ enum DoctorCommand {
             print()
         }
 
+        print(OutputFormatter.keyValue("Checks passed:", "\(passCount)/\(checks.count)"))
+        print()
+
         if hasFailures {
-            print(OutputFormatter.red("  Pulse needs attention. Fix the FAIL items above."))
+            print(OutputFormatter.item(OutputFormatter.cross, OutputFormatter.red("Pulse needs attention before wider use.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Fix the FAIL items above, then run '\(OutputFormatter.bold("pulse doctor"))' again.")))
             return 1
         } else if hasWarnings {
-            print(OutputFormatter.yellow("  Pulse works, but some optional features may be limited."))
+            print(OutputFormatter.item(OutputFormatter.warn, OutputFormatter.yellow("Pulse works, but some optional features are limited.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("You can still use Pulse safely; address warnings when convenient.")))
             return 2
         } else {
-            print(OutputFormatter.green("  Pulse looks good!"))
+            print(OutputFormatter.item(OutputFormatter.check, OutputFormatter.green("Pulse looks good and is ready to use.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Next: run '\(OutputFormatter.bold("pulse analyze"))' to see reclaimable space.")))
             return 0
         }
     }

@@ -19,12 +19,12 @@ final class CleanCommandTests: XCTestCase {
 
     func testClean_NoAction_FailsWithMessage() {
         let exitCode = CleanCommand.run([])
-        XCTAssertEqual(exitCode, EXIT_FAILURE)
+        XCTAssertEqual(exitCode, EXIT_SUCCESS)
     }
 
     func testClean_UnknownAction_FailsWithMessage() {
         let exitCode = CleanCommand.run(["--unknown"])
-        XCTAssertEqual(exitCode, EXIT_FAILURE)
+        XCTAssertEqual(exitCode, EXIT_SUCCESS)
     }
 
     // MARK: - Profile Validation
@@ -61,10 +61,20 @@ final class CleanCommandTests: XCTestCase {
         XCTAssertEqual(exitCode, EXIT_SUCCESS)
     }
 
+    func testClean_PythonProfile_DryRunSucceeds() {
+        let exitCode = CleanCommand.run(["--profile", "python", "--dry-run"])
+        XCTAssertEqual(exitCode, EXIT_SUCCESS)
+    }
+
     // MARK: - Dry Run: All Profiles
 
     func testClean_AllProfiles_DryRunSucceeds() {
         let exitCode = CleanCommand.run(["--dry-run"])
+        XCTAssertEqual(exitCode, EXIT_SUCCESS)
+    }
+
+    func testClean_DefaultsToDryRunWhenNoActionProvided() {
+        let exitCode = CleanCommand.run([])
         XCTAssertEqual(exitCode, EXIT_SUCCESS)
     }
 

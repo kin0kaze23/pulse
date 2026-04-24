@@ -16,6 +16,7 @@ enum CleanCommand {
         "xcode": .xcode,
         "homebrew": .homebrew,
         "node": .node,
+        "python": .python,
     ]
 
     // MARK: - Run
@@ -25,21 +26,22 @@ enum CleanCommand {
 
         switch parsed {
         case .help:
+            print(BuildVersion.cliString())
+            print()
             print("Usage:")
-            print("  pulse clean --dry-run                  Preview all profiles")
-            print("  pulse clean --profile <name> --dry-run Preview specific profile")
-            print("  pulse clean --profile <name> --apply   Execute cleanup")
+            print("  pulse clean")
+            print("  pulse clean --dry-run")
+            print("  pulse clean --profile <name> --dry-run")
+            print("  pulse clean --profile <name> --apply")
+            print()
+            print("Preview-first cleanup for supported profiles.")
+            print("Running 'pulse clean' with no action defaults to a safe preview.")
+            print("Use --dry-run first, then --apply when the preview looks right.")
             print()
             print("Options:")
-            print("  --json            Output as JSON (stable schema for scripting)")
-            print("  --yes, -y, --force  Skip confirmation prompt (for CI/CD automation)")
+            print(OutputFormatter.command("--json", description: "Output as JSON (stable schema for scripting)"))
+            print(OutputFormatter.command("--yes, -y, --force", description: "Skip confirmation prompt (for CI/CD automation)"))
             return EXIT_SUCCESS
-
-        case .missingAction:
-            print(OutputFormatter.red("Error: Specify --dry-run or --apply"))
-            print()
-            print(OutputFormatter.dim("Run 'pulse clean --help' for usage."))
-            return EXIT_FAILURE
 
         case .dryRun(let profile, let json):
             return runDryRun(profile: profile, json: json)
@@ -53,7 +55,6 @@ enum CleanCommand {
 
     private enum ParsedArgs {
         case help
-        case missingAction
         case dryRun(profile: CleanupProfile?, json: Bool)
         case apply(profile: CleanupProfile?, force: Bool)
     }
@@ -106,7 +107,17 @@ enum CleanCommand {
             i += 1
         }
 
-        return action ?? .missingAction
+        if let action { return action }
+
+        if let name = profileName, let profile = supportedProfiles[name] {
+            return .dryRun(profile: profile, json: json)
+        } else if let name = profileName {
+            print(OutputFormatter.red("Error: Unsupported profile '\(name)'"))
+            print("Supported profiles: \(supportedProfiles.keys.sorted().joined(separator: ", "))")
+            return .help
+        }
+
+        return .dryRun(profile: nil, json: json)
     }
 
     // MARK: - Dry Run
@@ -116,20 +127,25 @@ enum CleanCommand {
         if let profile = profile {
             profiles = [profile]
         } else {
-            profiles = [.xcode, .homebrew, .node]
+            profiles = [.xcode, .homebrew, .node, .python]
         }
 
         let config = CleanupConfig(profiles: profiles)
         let engine = CleanupEngine()
-        let plan = engine.scan(config: config)
+        let plan: CleanupPlan
+
+        if json {
+            plan = engine.scan(config: config)
+        } else {
+            let spinner = OutputFormatter.Spinner(message: "Preparing cleanup preview...")
+            spinner.start()
+            plan = engine.scan(config: config)
+            spinner.stop(success: true)
+            print()
+        }
 
         if json {
             return outputDryRunJSON(plan, profile: profile)
-        }
-
-        if !plan.items.isEmpty {
-            print(OutputFormatter.bold("Pulse"))
-            print()
         }
 
         return outputDryRunHuman(plan, profile: profile)
@@ -179,11 +195,12 @@ enum CleanCommand {
     private static func outputDryRunHuman(_ plan: CleanupPlan, profile: CleanupProfile?) -> Int32 {
         let profileLabel = profile.map { $0.rawValue } ?? "all profiles"
 
-        print(OutputFormatter.bold("Dry Run — \(profileLabel)"))
+        print(OutputFormatter.bold("Pulse"))
+        print(OutputFormatter.section("Cleanup Preview — \(profileLabel)"))
         print()
 
         if plan.items.isEmpty {
-            print("  Nothing to clean. All caches are below thresholds.")
+            print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
             return EXIT_SUCCESS
         }
 
@@ -222,12 +239,13 @@ enum CleanCommand {
         }
 
         print()
-        print(OutputFormatter.dim("To execute this cleanup, run:"))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Review this preview, then run one of the commands below:")))
         if let profile = profile {
-            print(OutputFormatter.dim("  pulse clean --profile \(profile.rawValue) --apply"))
+            print(OutputFormatter.item(OutputFormatter.dot, OutputFormatter.dim("pulse clean --profile \(profile.rawValue) --apply")))
         } else {
-            print(OutputFormatter.dim("  pulse clean --profile <name> --apply"))
+            print(OutputFormatter.item(OutputFormatter.dot, OutputFormatter.dim("pulse clean --profile <name> --apply")))
         }
+        print(OutputFormatter.safetyFootnote())
 
         return EXIT_SUCCESS
     }
@@ -241,7 +259,7 @@ enum CleanCommand {
             profiles = [profile]
             profileLabel = profile.rawValue
         } else {
-            profiles = [.xcode, .homebrew, .node]
+            profiles = [.xcode, .homebrew, .node, .python]
             profileLabel = "all profiles"
         }
 
@@ -249,16 +267,19 @@ enum CleanCommand {
         let engine = CleanupEngine()
 
         // Preview first
+        let spinner = OutputFormatter.Spinner(message: "Preparing cleanup plan...")
+        spinner.start()
         let plan = engine.scan(config: config)
+        spinner.stop(success: true)
+        print()
 
         if plan.items.isEmpty {
-            print("  Nothing to clean. All caches are below thresholds.")
+            print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
             return EXIT_SUCCESS
         }
 
         print(OutputFormatter.bold("Pulse"))
-        print()
-        print(OutputFormatter.bold("Cleanup Preview — \(profileLabel)"))
+        print(OutputFormatter.section("Cleanup Preview — \(profileLabel)"))
         print()
 
         let headers = ["Item", "Size", "Action"]
@@ -293,10 +314,11 @@ enum CleanCommand {
         // Confirmation (skip if --yes / --force)
         if !force {
             print()
-            print(OutputFormatter.yellow("This action will permanently clean \(profileLabel)."))
+            print(OutputFormatter.yellow("This action will remove cleanup targets for \(profileLabel)."))
             if plan.items.contains(where: { $0.warningMessage != nil }) {
                 print(OutputFormatter.yellow("Some items have warnings — review before proceeding."))
             }
+            print(OutputFormatter.safetyFootnote())
             print()
             print("Type '\(OutputFormatter.bold("yes"))' to confirm: ", terminator: "")
 

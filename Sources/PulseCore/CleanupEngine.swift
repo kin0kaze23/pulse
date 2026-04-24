@@ -40,6 +40,12 @@ public struct CleanupEngine {
             items.append(contentsOf: nodePlan.items)
         }
 
+        if config.profiles.contains(.python) {
+            let python = PythonEngine()
+            let pythonPlan = python.scan()
+            items.append(contentsOf: pythonPlan.items)
+        }
+
         let totalSizeMB = items.reduce(0) { $0 + $1.sizeMB }
         return CleanupPlan(items: items, totalSizeMB: totalSizeMB)
     }

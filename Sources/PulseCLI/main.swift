@@ -39,9 +39,11 @@ private func autoJsonArgs(_ args: [String]) -> [String] {
 let arguments = CommandLine.arguments.dropFirst()
 
 guard !arguments.isEmpty else {
-    print(banner())
-    print()
-    print(Usage.help())
+    if isatty(fileno(stdout)) != 0 {
+        print(Usage.landingScreen())
+    } else {
+        print(Usage.help())
+    }
     exit(EXIT_SUCCESS)
 }
 
@@ -67,7 +69,9 @@ case "--version", "-v":
     print(BuildVersion.cliString())
     exit(EXIT_SUCCESS)
 default:
-    print("Error: Unknown command '\(command)'")
+    print(OutputFormatter.red("Error: Unknown command '\(command)'"))
+    print()
+    print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Try '\(OutputFormatter.bold("pulse --help"))' to see the full command guide.")))
     print()
     print(Usage.help())
     exit(EXIT_FAILURE)

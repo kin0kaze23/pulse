@@ -158,7 +158,7 @@ enum OutputFormatter {
                 let frame = self.frames[self.frameIndex % self.frames.count]
                 self.frameIndex += 1
                 let elapsed = Date().timeIntervalSince(self.startTime ?? Date())
-                let output = String(format: "\r%s %s (%.1fs)", frame, self.message, elapsed)
+                let output = "\r\(frame) \(self.message) (\(String(format: "%.1f", elapsed))s)"
                 fputs(output, stderr)
                 fflush(stderr)
             }
@@ -171,7 +171,7 @@ enum OutputFormatter {
             guard isTTY else { return }
             let elapsed = Date().timeIntervalSince(startTime ?? Date())
             let icon = success ? OutputFormatter.check : OutputFormatter.cross
-            let output = String(format: "\r%s %s (%.1fs)\n", icon, message, elapsed)
+            let output = "\r\(icon) \(message) (\(String(format: "%.1f", elapsed))s)\n"
             fputs(output, stderr)
             fflush(stderr)
         }
@@ -186,50 +186,111 @@ enum OutputFormatter {
     static func item(_ icon: String, _ text: String) -> String {
         "  \(icon) \(text)"
     }
+
+    static func command(_ command: String, description: String) -> String {
+        let width = 30
+        if command.count > width {
+            return "  \(bold(command))\n  \(String(repeating: " ", count: width)) \(description)"
+        }
+        let padded = command.padding(toLength: width, withPad: " ", startingAt: 0)
+        return "  \(bold(padded)) \(description)"
+    }
+
+    static func keyValue(_ key: String, _ value: String) -> String {
+        "  \(bold(key)) \(value)"
+    }
+
+    static func safetyFootnote() -> String {
+        item(info, dim("Pulse never deletes system paths, app bundles, or user documents."))
+    }
 }
 
 // MARK: - Usage
 
 enum Usage {
+    static func landingScreen() -> String {
+        let cwd = FileManager.default.currentDirectoryPath
+        let repo = URL(fileURLWithPath: cwd).lastPathComponent
+        let outputMode = isTTY ? "standard" : "minimal"
+        let readiness = "alpha-ready"
+
+        return """
+        \(OutputFormatter.bold(BuildVersion.cliString()))
+        \(OutputFormatter.dim("Safe cleanup and machine audit for macOS developers"))
+
+        \(OutputFormatter.section("Status"))
+        \(OutputFormatter.keyValue("Readiness:", readiness))
+        \(OutputFormatter.keyValue("Workspace:", repo))
+        \(OutputFormatter.keyValue("Output:", outputMode + " terminal UI"))
+        \(OutputFormatter.keyValue("Safety:", "preview-first · protected paths · stable JSON"))
+        \(OutputFormatter.keyValue("Profiles:", "xcode · homebrew · node · python"))
+
+        \(OutputFormatter.section("Recommended next actions"))
+        \(OutputFormatter.command("pulse doctor", description: "Verify setup and permissions"))
+        \(OutputFormatter.command("pulse analyze", description: "See reclaimable cache space"))
+        \(OutputFormatter.command("pulse clean", description: "Preview safe cleanup by default"))
+        \(OutputFormatter.command("pulse artifacts", description: "Find project build artifacts"))
+
+        \(OutputFormatter.section("Common commands"))
+        \(OutputFormatter.command("pulse clean", description: "Default safe preview for all profiles"))
+        \(OutputFormatter.command("pulse clean --profile xcode", description: "Preview one cleanup profile"))
+        \(OutputFormatter.command("pulse artifacts --all", description: "Include recently modified projects"))
+        \(OutputFormatter.command("pulse audit", description: "Check stale machine issues"))
+        \(OutputFormatter.command("pulse doctor --json", description: "Use in scripts or setup automation"))
+
+        \(OutputFormatter.section("Safety promise"))
+        \(OutputFormatter.item(OutputFormatter.check, "Preview-first by default"))
+        \(OutputFormatter.item(OutputFormatter.check, "Protected paths blocked in code"))
+        \(OutputFormatter.item(OutputFormatter.check, "Stable JSON for automation"))
+
+        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Tip: run '\(OutputFormatter.bold("pulse <command> --help"))' for command-specific guidance.")))
+        """
+    }
+
     static func help() -> String {
         """
         \(OutputFormatter.bold(BuildVersion.cliString()))
+        \(OutputFormatter.dim("Safe cleanup and machine audit for macOS developers"))
 
-        Usage:
-          pulse analyze                    Scan for cleanup candidates
-          pulse artifacts                  Scan for build artifacts
-          pulse audit                      Scan dev environment issues
-          pulse clean --dry-run            Preview cleanup (all profiles)
-          pulse clean --profile <name>     Preview cleanup for specific profile
-          pulse clean --profile <name> --apply  Execute cleanup
-          pulse doctor                     Verify installation and environment
-          pulse completion <shell>         Generate shell completion scripts
+        \(OutputFormatter.section("Start here"))
+        \(OutputFormatter.command("pulse doctor", description: "Verify install, toolchain, and permissions"))
+        \(OutputFormatter.command("pulse analyze", description: "See reclaimable cache space across profiles"))
+        \(OutputFormatter.command("pulse clean", description: "Preview exactly what Pulse would remove"))
 
-        Supported profiles:
-          xcode       Xcode caches (DerivedData, Archives, DeviceSupport, Simulators)
-          homebrew    Homebrew caches (downloads, old formulae/casks)
-          node        Node.js package manager caches (npm, yarn, pnpm)
+        \(OutputFormatter.section("Commands"))
+        \(OutputFormatter.command("pulse analyze", description: "Scan Xcode, Homebrew, Node, and Python caches"))
+        \(OutputFormatter.command("pulse artifacts", description: "Find build artifacts in project directories"))
+        \(OutputFormatter.command("pulse audit", description: "Audit stale developer-machine issues"))
+        \(OutputFormatter.command("pulse clean", description: "Preview cleanup for all supported profiles"))
+        \(OutputFormatter.command("pulse clean --profile <name>", description: "Preview or apply one cleanup profile"))
+        \(OutputFormatter.command("pulse doctor", description: "Check environment readiness and optional access"))
+        \(OutputFormatter.command("pulse completion <shell>", description: "Generate shell completion scripts"))
 
-        Options:
-          --profile <name>  Target a specific cleanup profile
-          --dry-run         Show what would be cleaned without deleting
-          --apply           Execute the cleanup (requires confirmation)
-          --yes, -y         Skip confirmation prompt (for CI/CD automation)
-          --json            Output as JSON (for scripting/automation)
-          --help, -h        Show this help message
-          --version, -v     Show version
+        \(OutputFormatter.section("Supported cleanup profiles"))
+        \(OutputFormatter.command("xcode", description: "DerivedData, Archives, DeviceSupport, Simulators"))
+        \(OutputFormatter.command("homebrew", description: "Download cache, old formulae, old casks"))
+        \(OutputFormatter.command("node", description: "npm cache, Yarn cache, pnpm store"))
+        \(OutputFormatter.command("python", description: "pip, Poetry, and uv caches"))
 
-        Examples:
-          pulse analyze
-          pulse analyze --json
-          pulse artifacts
-          pulse artifacts --apply --yes
-          pulse audit
-          pulse clean --dry-run
-          pulse clean --profile xcode --dry-run --json
-          pulse clean --profile homebrew --apply
-          pulse doctor
-          pulse completion zsh > /usr/local/share/zsh/site-functions/_pulse
+        \(OutputFormatter.section("Common flags"))
+        \(OutputFormatter.command("--dry-run", description: "Preview cleanup without deleting anything"))
+        \(OutputFormatter.command("--apply", description: "Execute cleanup after confirmation"))
+        \(OutputFormatter.command("--yes, -y", description: "Skip confirmation for automation / CI"))
+        \(OutputFormatter.command("--json", description: "Machine-readable output for scripting"))
+        \(OutputFormatter.command("--help, -h", description: "Show command help"))
+        \(OutputFormatter.command("--version, -v", description: "Show current Pulse CLI version"))
+
+        \(OutputFormatter.section("Examples"))
+        \(OutputFormatter.command("pulse analyze", description: "Best first scan for reclaimable cache space"))
+        \(OutputFormatter.command("pulse artifacts --all", description: "Include recently modified project artifacts"))
+        \(OutputFormatter.command("pulse clean --profile xcode", description: "Preview or apply one profile"))
+        \(OutputFormatter.command("pulse doctor --json", description: "Use in scripts and setup checks"))
+        \(OutputFormatter.command("pulse completion zsh > _pulse", description: "Install shell completion"))
+
+        \(OutputFormatter.section("Safety"))
+        \(OutputFormatter.item(OutputFormatter.check, "Preview-first by default"))
+        \(OutputFormatter.item(OutputFormatter.check, "Protected paths blocked in code"))
+        \(OutputFormatter.item(OutputFormatter.check, "Stable JSON output for automation"))
         """
     }
 }

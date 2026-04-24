@@ -17,16 +17,21 @@ enum ArtifactsCommand {
 
         switch parsed {
         case .help:
+            print(BuildVersion.cliString())
+            print()
             print("Usage:")
-            print("  pulse artifacts                  Scan for build artifacts")
-            print("  pulse artifacts --apply          Clean found artifacts")
+            print("  pulse artifacts")
+            print("  pulse artifacts --apply")
+            print()
+            print("Find build artifacts in project directories like node_modules, .build,")
+            print("target, dist, venv, and other generated outputs.")
             print()
             print("Options:")
-            print("  --dry-run         Show what would be cleaned (default)")
-            print("  --apply           Execute cleanup")
-            print("  --yes, -y         Skip confirmation prompt (CI/CD)")
-            print("  --json            Output as JSON")
-            print("  --all             Include recently modified projects")
+            print(OutputFormatter.command("--dry-run", description: "Show what would be cleaned (default)"))
+            print(OutputFormatter.command("--apply", description: "Execute cleanup"))
+            print(OutputFormatter.command("--yes, -y", description: "Skip confirmation prompt (CI/CD)"))
+            print(OutputFormatter.command("--json", description: "Output as JSON"))
+            print(OutputFormatter.command("--all", description: "Include recently modified projects"))
             return EXIT_SUCCESS
 
         case .missingAction(let force, let json, let includeRecent):
@@ -98,21 +103,31 @@ enum ArtifactsCommand {
             )
         }
 
-        let artifacts = scanner.scan(config: config)
+        let artifacts: [ArtifactItem]
+
+        if json {
+            artifacts = scanner.scan(config: config)
+        } else {
+            let spinner = OutputFormatter.Spinner(message: "Scanning project artifacts...")
+            spinner.start()
+            artifacts = scanner.scan(config: config)
+            spinner.stop(success: true)
+            print()
+        }
 
         if artifacts.isEmpty && !includeRecent {
             if json {
                 return outputJSON([])
             }
-            print("  No build artifacts found in default scan paths.")
+            print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("No build artifacts found in default scan paths.")))
             print()
-            print("  Pulse looks for node_modules, .build, target, dist,")
-            print("  venv, __pycache__, .dart_tool, and Pods in:")
+            print(OutputFormatter.dim("Pulse looks for node_modules, .build, target, dist,"))
+            print(OutputFormatter.dim("venv, __pycache__, .dart_tool, Pods, and more in:"))
             for path in ArtifactScanConfig.defaultScanPaths {
-                print("    \(path)")
+                print(OutputFormatter.item(OutputFormatter.dot, path))
             }
             print()
-            print("  Use 'pulse artifacts --all' to include recently modified projects.")
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts --all"))' to include recently modified projects.")))
             return EXIT_SUCCESS
         }
 
@@ -120,7 +135,7 @@ enum ArtifactsCommand {
             if json {
                 return outputJSON([])
             }
-            print("  No build artifacts found.")
+            print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("No build artifacts found.")))
             return EXIT_SUCCESS
         }
 
@@ -131,8 +146,8 @@ enum ArtifactsCommand {
             if json {
                 return outputJSON(artifacts)
             }
-            print("  All artifacts are from recently modified projects.")
-            print("  Use 'pulse artifacts --all' to include them.")
+            print(OutputFormatter.item(OutputFormatter.info, OutputFormatter.dim("All artifacts are from recently modified projects.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts --all"))' to include them.")))
             return EXIT_SUCCESS
         }
 
@@ -157,8 +172,7 @@ enum ArtifactsCommand {
         let allTotal = artifacts.reduce(0) { $0 + $1.sizeMB }
 
         print(OutputFormatter.bold("Pulse"))
-        print()
-        print(OutputFormatter.bold("Project Artifacts"))
+        print(OutputFormatter.section("Project Artifacts"))
 
         if artifacts.count != displayItems.count {
             let skipped = artifacts.count - displayItems.count
@@ -204,9 +218,10 @@ enum ArtifactsCommand {
 
         // Footer
         print()
-        print(OutputFormatter.dim("Run 'pulse artifacts --apply' to clean these artifacts."))
-        print(OutputFormatter.dim("Run 'pulse artifacts --apply --yes' for CI/CD automation."))
-        print(OutputFormatter.dim("Run 'pulse artifacts --all' to include recently modified projects."))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts --apply"))' to clean these artifacts.")))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts --apply --yes"))' for CI/CD automation.")))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts --all"))' to include recently modified projects.")))
+        print(OutputFormatter.safetyFootnote())
 
         return EXIT_SUCCESS
     }
@@ -218,8 +233,7 @@ enum ArtifactsCommand {
         let totalMB = displayItems.reduce(0) { $0 + $1.sizeMB }
 
         print(OutputFormatter.bold("Pulse"))
-        print()
-        print(OutputFormatter.bold("Cleanup Preview — Artifacts"))
+        print(OutputFormatter.section("Cleanup Preview — Artifacts"))
         print()
 
         // Table
@@ -250,7 +264,8 @@ enum ArtifactsCommand {
         // Confirmation
         if !force {
             print()
-            print(OutputFormatter.yellow("This action will permanently delete build artifacts from \(displayItems.count) project(s)."))
+            print(OutputFormatter.yellow("This action will remove build artifacts from \(displayItems.count) project(s)."))
+            print(OutputFormatter.safetyFootnote())
             print()
             print("Type '\(OutputFormatter.bold("yes"))' to confirm: ", terminator: "")
 

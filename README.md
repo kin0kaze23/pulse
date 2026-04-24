@@ -42,15 +42,30 @@ pulse audit     # Check dev environment health
 pulse doctor    # Verify your setup
 ```
 
+### Recommended First-Time Flow
+
+```bash
+pulse doctor
+pulse analyze
+pulse clean
+```
+
+Then, if the preview looks right:
+
+```bash
+pulse clean --profile xcode --apply
+```
+
 ---
 
 ## Commands
 
 | Command | Description | JSON |
 |---------|-------------|------|
-| `pulse analyze` | Scan tool caches (Xcode, Homebrew, Node) | ✅ |
+| `pulse analyze` | Scan tool caches (Xcode, Homebrew, Node, Python) | ✅ |
 | `pulse artifacts` | Scan project build artifacts (node_modules, .build, target, venv, etc.) | ✅ |
 | `pulse audit` | Scan dev environment (stale simulators, orphaned taps, dead symlinks, old toolchains) | ✅ |
+| `pulse clean` | Safe default preview for all cleanup profiles | ✅ |
 | `pulse clean --dry-run` | Preview what would be cleaned | ✅ |
 | `pulse clean --profile <name> --apply` | Execute cleanup | ✅ |
 | `pulse clean --profile <name> --apply --yes` | Execute cleanup (CI/CD, no prompt) | ✅ |
@@ -74,6 +89,7 @@ pulse audit | jq '.criticalCount'   # 0
 | `xcode` | DerivedData, Archives, DeviceSupport, Simulators | File deletion |
 | `homebrew` | Download cache, old formulae/casks | `brew cleanup` |
 | `node` | npm cache, Yarn cache, pnpm store | File deletion |
+| `python` | pip, Poetry, and uv caches | File deletion |
 
 ### Artifact Types (16 supported)
 

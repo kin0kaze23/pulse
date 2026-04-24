@@ -582,10 +582,6 @@ final class OperationAuditLogTests: XCTestCase {
     }
 
     func testFilterByDateRange() {
-        let now = Date()
-        let yesterday = now.addingTimeInterval(-86400)
-        let lastWeek = now.addingTimeInterval(-7 * 86400)
-
         // We can't easily inject dates into entries, so test with all filter = no filtering
         auditLog.log(operation: .cleanup, success: true)
         auditLog.log(operation: .scan, success: true)

@@ -60,7 +60,7 @@ final class ArtifactScannerTests: XCTestCase {
     func testScan_NodeModules_Discovered() throws {
         let projectDir = tempDir.appendingPathComponent("my-app")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-        try createArtifact(at: projectDir, name: "node_modules", sizeMB: 150, daysAgo: 60)
+        _ = try createArtifact(at: projectDir, name: "node_modules", sizeMB: 150, daysAgo: 60)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -83,9 +83,9 @@ final class ArtifactScannerTests: XCTestCase {
         try FileManager.default.createDirectory(at: apiDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        try createArtifact(at: appDir, name: "node_modules", sizeMB: 200, daysAgo: 90)
-        try createArtifact(at: apiDir, name: "target", sizeMB: 300, daysAgo: 120)
-        try createArtifact(at: libDir, name: ".build", sizeMB: 150, daysAgo: 60)
+        _ = try createArtifact(at: appDir, name: "node_modules", sizeMB: 200, daysAgo: 90)
+        _ = try createArtifact(at: apiDir, name: "target", sizeMB: 300, daysAgo: 120)
+        _ = try createArtifact(at: libDir, name: ".build", sizeMB: 150, daysAgo: 60)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -108,7 +108,7 @@ final class ArtifactScannerTests: XCTestCase {
     func testScan_SkipsRecentArtifacts() throws {
         let projectDir = tempDir.appendingPathComponent("my-app")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-        try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 3)
+        _ = try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 3)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -124,7 +124,7 @@ final class ArtifactScannerTests: XCTestCase {
     func testScan_SkipsSmallArtifacts() throws {
         let projectDir = tempDir.appendingPathComponent("my-app")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-        try createArtifact(at: projectDir, name: "node_modules", sizeMB: 50, daysAgo: 30)
+        _ = try createArtifact(at: projectDir, name: "node_modules", sizeMB: 50, daysAgo: 30)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -142,8 +142,8 @@ final class ArtifactScannerTests: XCTestCase {
         try FileManager.default.createDirectory(at: excludedDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: includedDir, withIntermediateDirectories: true)
 
-        try createArtifact(at: excludedDir, name: "node_modules", sizeMB: 200, daysAgo: 60)
-        try createArtifact(at: includedDir, name: "target", sizeMB: 200, daysAgo: 60)
+        _ = try createArtifact(at: excludedDir, name: "node_modules", sizeMB: 200, daysAgo: 60)
+        _ = try createArtifact(at: includedDir, name: "target", sizeMB: 200, daysAgo: 60)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -174,7 +174,7 @@ final class ArtifactScannerTests: XCTestCase {
         for (i, pair) in types.enumerated() {
             let projectDir = tempDir.appendingPathComponent("project-\(i)")
             try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-            try createArtifact(at: projectDir, name: pair.0, sizeMB: pair.1, daysAgo: 30 + i)
+            _ = try createArtifact(at: projectDir, name: pair.0, sizeMB: pair.1, daysAgo: 30 + i)
         }
 
         let config = ArtifactScanConfig(
@@ -196,7 +196,7 @@ final class ArtifactScannerTests: XCTestCase {
     func testPlan_ConvertsArtifactsToCleanupPlan() throws {
         let projectDir = tempDir.appendingPathComponent("my-app")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-        try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 60)
+        _ = try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 60)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],
@@ -218,7 +218,7 @@ final class ArtifactScannerTests: XCTestCase {
     func testPlan_RecentArtifactsHaveSkipReason() throws {
         let projectDir = tempDir.appendingPathComponent("my-app")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
-        try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 3)
+        _ = try createArtifact(at: projectDir, name: "node_modules", sizeMB: 200, daysAgo: 3)
 
         let config = ArtifactScanConfig(
             scanPaths: [tempDir.path],

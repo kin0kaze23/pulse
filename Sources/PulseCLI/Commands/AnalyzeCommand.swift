@@ -12,18 +12,26 @@ enum AnalyzeCommand {
 
     static func run(_ args: [String]) -> Int32 {
         if args.contains(where: { $0 == "--help" || $0 == "-h" }) {
+            print(BuildVersion.cliString())
+            print()
             print("Usage: pulse analyze [--json]")
             print()
-            print("Scan all supported profiles (xcode, homebrew, node) and show")
-            print("what can be cleaned, including estimated reclaimable space.")
+            print("Scan supported cleanup profiles and estimate reclaimable cache space.")
+            print("This is the best first command for new users.")
+            print()
+            print("Profiles scanned:")
+            print(OutputFormatter.command("xcode", description: "DerivedData, Archives, DeviceSupport, Simulators"))
+            print(OutputFormatter.command("homebrew", description: "Download cache, old formulae, old casks"))
+            print(OutputFormatter.command("node", description: "npm cache, Yarn cache, pnpm store"))
+            print(OutputFormatter.command("python", description: "pip, Poetry, and uv caches"))
             print()
             print("Options:")
-            print("  --json    Output as JSON (stable schema for scripting)")
+            print(OutputFormatter.command("--json", description: "Output as JSON (stable schema for scripting)"))
             return EXIT_SUCCESS
         }
 
         let jsonOutput = args.contains("--json")
-        let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node]
+        let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python]
         let config = CleanupConfig(profiles: allProfiles)
 
         let engine = CleanupEngine()
@@ -49,9 +57,12 @@ enum AnalyzeCommand {
     // MARK: - Human Output
 
     private static func outputHuman(_ plan: CleanupPlan) -> Int32 {
+        print(OutputFormatter.bold("Pulse"))
+
         if plan.items.isEmpty {
             print()
             print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to check project build artifacts next.")))
             return EXIT_SUCCESS
         }
 
@@ -83,8 +94,9 @@ enum AnalyzeCommand {
 
         // Footer
         print()
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean --dry-run"))' to preview cleanup.")))
+        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean"))' to preview cleanup.")))
         print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean --profile <name> --apply"))' to execute.")))
+        print(OutputFormatter.safetyFootnote())
 
         return EXIT_SUCCESS
     }
