@@ -280,25 +280,32 @@ enum DoctorCommand {
     ///   1 — Any check FAIL (needs attention)
     ///   2 — No failures, but warnings present (works with limitations)
     private static func outputHuman(_ checks: [Check]) -> Int32 {
-        print(OutputFormatter.bold("Pulse"))
-        print(OutputFormatter.section("Pulse Doctor"))
-
         var hasWarnings = false
         var hasFailures = false
         var passCount = 0
+
+        for check in checks {
+            if check.status == .warn { hasWarnings = true }
+            if check.status == .fail { hasFailures = true }
+            if check.status == .pass { passCount += 1 }
+        }
+
+        print(OutputFormatter.bold("Pulse"))
+        print(OutputFormatter.panel(title: "Pulse Doctor", lines: [
+            "Checks passed  \(passCount)/\(checks.count)",
+            "Warnings       \(hasWarnings ? "present" : "none")",
+            "Failures       \(hasFailures ? "present" : "none")",
+        ]))
 
         for check in checks {
             let statusText: String
             switch check.status {
             case .pass:
                 statusText = OutputFormatter.green("[PASS]")
-                passCount += 1
             case .warn:
                 statusText = OutputFormatter.yellow("[WARN]")
-                hasWarnings = true
             case .fail:
                 statusText = OutputFormatter.red("[FAIL]")
-                hasFailures = true
             case .info:
                 statusText = OutputFormatter.dim("[INFO]")
             }
@@ -312,7 +319,6 @@ enum DoctorCommand {
             print()
         }
 
-        print(OutputFormatter.keyValue("Checks passed:", "\(passCount)/\(checks.count)"))
         print()
 
         if hasFailures {

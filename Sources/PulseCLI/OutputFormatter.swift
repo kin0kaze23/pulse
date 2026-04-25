@@ -213,12 +213,12 @@ enum OutputFormatter {
         let width = max(title.count + 4, content.map { $0.count }.max() ?? 0)
         let innerWidth = max(width, 28)
         let topTitle = " \(title) "
-        let topLine = "╭" + topTitle + String(repeating: "─", count: max(0, innerWidth - topTitle.count)) + "╮"
+        let topLine = cyan("╭") + bold(cyan(topTitle)) + cyan(String(repeating: "─", count: max(0, innerWidth - topTitle.count))) + cyan("╮")
         let body = content.map { line in
             let padded = line.padding(toLength: innerWidth, withPad: " ", startingAt: 0)
-            return "│\(padded)│"
+            return dim("│") + padded + dim("│")
         }
-        let bottom = "╰" + String(repeating: "─", count: innerWidth) + "╯"
+        let bottom = cyan("╰") + cyan(String(repeating: "─", count: innerWidth)) + cyan("╯")
         return ([topLine] + body + [bottom]).joined(separator: "\n")
     }
 
@@ -237,18 +237,19 @@ enum Usage {
         let readiness = "alpha-ready"
 
         let statusPanel = OutputFormatter.panel(title: "Status", lines: [
-            "Readiness  \(readiness)",
+            "Readiness  \(OutputFormatter.green(readiness))",
             "Workspace  \(repo)",
             "Output     \(outputMode) terminal UI",
-            "Safety     preview-first · protected paths · stable JSON",
+            "Safety     \(OutputFormatter.green("preview-first")) · \(OutputFormatter.cyan("protected paths")) · stable JSON",
             "Profiles   xcode · homebrew · node · python",
         ])
 
         let actionsPanel = OutputFormatter.panel(title: "Recommended next actions", lines: [
-            "1. pulse doctor    Verify setup and permissions",
-            "2. pulse analyze   See reclaimable cache space",
-            "3. pulse clean     Preview safe cleanup by default",
-            "4. pulse artifacts Find project build artifacts",
+            "[1] pulse doctor     Verify setup and permissions",
+            "[2] pulse analyze    See reclaimable cache space",
+            "[3] pulse clean      Preview safe cleanup by default",
+            "[4] pulse artifacts  Find project build artifacts",
+            "[5] pulse audit      Check stale machine issues",
         ])
 
         let commandsPanel = OutputFormatter.panel(title: "Common commands", lines: [
@@ -274,7 +275,9 @@ enum Usage {
         \(OutputFormatter.item(OutputFormatter.check, "Protected paths blocked in code"))
         \(OutputFormatter.item(OutputFormatter.check, "Stable JSON for automation"))
 
-        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Tip: run '\(OutputFormatter.bold("pulse <command> --help"))' for command-specific guidance.")))
+        \(OutputFormatter.section("Action prompt"))
+        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Press 1–5 then Enter to launch a recommended action.")))
+        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Type h for full help, or q to quit.")))
         """
     }
 

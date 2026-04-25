@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/kin0kaze23/pulse/main/scripts/insta
 ### First Run
 
 ```bash
-pulse           # Show all commands
+pulse           # Open the interactive command dashboard
 pulse analyze   # Scan for reclaimable space
 pulse artifacts # Find build artifacts in your projects
 pulse audit     # Check dev environment health
@@ -49,6 +49,13 @@ pulse doctor
 pulse analyze
 pulse clean
 ```
+
+In a normal terminal, `pulse clean` shows a guided preview and lets you:
+
+- press **Enter** to clean recommended items
+- press **p** to choose a profile
+- press **a** to clean everything shown
+- press **q** to cancel
 
 Then, if the preview looks right:
 

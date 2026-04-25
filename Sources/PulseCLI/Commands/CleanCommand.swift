@@ -257,6 +257,7 @@ enum CleanCommand {
         print(OutputFormatter.item(OutputFormatter.arrow, "Press q to cancel"))
         print()
         print("Choice: ", terminator: "")
+        fflush(stdout)
 
         let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
         switch input {
@@ -280,6 +281,7 @@ enum CleanCommand {
         print(OutputFormatter.item(OutputFormatter.dot, "[q] cancel"))
         print()
         print("Profile: ", terminator: "")
+        fflush(stdout)
 
         let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
         if input == "q" { return .cancel }
@@ -294,6 +296,7 @@ enum CleanCommand {
         if requireStrongConfirmation {
             print(OutputFormatter.yellow("This will clean all items shown for \(scopeLabel)."))
             print(OutputFormatter.dim("Type CLEAN ALL to continue: "), terminator: "")
+            fflush(stdout)
             let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard input == "CLEAN ALL" else {
                 print()
@@ -347,6 +350,10 @@ enum CleanCommand {
             print(OutputFormatter.section("Cleanup Preview — \(profileLabel)"))
             print()
             print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
+            print(OutputFormatter.actionFooter([
+                "Run 'pulse artifacts' to check project build artifacts",
+                "Run 'pulse audit' to check stale machine issues",
+            ]))
             return EXIT_SUCCESS
         }
 

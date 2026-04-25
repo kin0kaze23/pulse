@@ -62,25 +62,18 @@ enum AuditCommand {
             return EXIT_SUCCESS
         }
 
-        print(OutputFormatter.bold("Pulse"))
-        print(OutputFormatter.section("Developer Environment Audit"))
-
         let criticalCount = issues.filter { $0.severity == .critical }.count
         let warningCount = issues.filter { $0.severity == .warning }.count
         let infoCount = issues.filter { $0.severity == .info }.count
         let totalReclaimable = issues.compactMap { $0.reclaimableMB }.reduce(0, +)
 
-        var statusParts: [String] = []
-        if criticalCount > 0 { statusParts.append(OutputFormatter.red("\(criticalCount) critical")) }
-        if warningCount > 0 { statusParts.append(OutputFormatter.yellow("\(warningCount) warning(s)")) }
-        if infoCount > 0 { statusParts.append(OutputFormatter.dim("\(infoCount) info")) }
-        print(OutputFormatter.dim(statusParts.joined(separator: " · ")))
-
-        if totalReclaimable > 0 {
-            print(OutputFormatter.dim("Potential reclaimable: \(OutputFormatter.formatSizeMB(totalReclaimable))"))
-        }
-
-        print()
+        print(OutputFormatter.bold("Pulse"))
+        print(OutputFormatter.panel(title: "Developer Environment Audit", lines: [
+            "Critical issues  \(criticalCount)",
+            "Warnings         \(warningCount)",
+            "Info             \(infoCount)",
+            "Potential reclaim \(OutputFormatter.formatSizeMB(totalReclaimable))",
+        ]))
 
         // Group by category
         let grouped = Dictionary(grouping: issues, by: { $0.category })
