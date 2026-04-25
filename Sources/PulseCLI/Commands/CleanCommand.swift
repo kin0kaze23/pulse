@@ -259,9 +259,9 @@ enum CleanCommand {
         print("Choice: ", terminator: "")
         fflush(stdout)
 
-        let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
+        let input = TTYInput.readKey() ?? "q"
         switch input {
-        case "": return .recommended
+        case "enter": return .recommended
         case "a": return .all
         case "p":
             return promptProfileChoice(currentProfile: currentProfile)
@@ -283,7 +283,7 @@ enum CleanCommand {
         print("Profile: ", terminator: "")
         fflush(stdout)
 
-        let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
+        let input = TTYInput.readKey() ?? "q"
         if input == "q" { return .cancel }
         if let index = Int(input), profiles.indices.contains(index - 1), let profile = supportedProfiles[profiles[index - 1]] {
             return .profile(profile)

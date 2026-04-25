@@ -276,7 +276,7 @@ enum Usage {
         \(OutputFormatter.item(OutputFormatter.check, "Stable JSON for automation"))
 
         \(OutputFormatter.section("Action prompt"))
-        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Press 1–5 then Enter to launch a recommended action.")))
+        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Press 1–5 to launch a recommended action.")))
         \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Type h for full help, or q to quit.")))
         """
     }

@@ -72,10 +72,10 @@ private func runLandingInteraction() -> Int32 {
     print(OutputFormatter.bold("Choice:"), terminator: " ")
     fflush(stdout)
 
-    let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "q"
+    let input = TTYInput.readKey() ?? "q"
     switch input {
     case "1": return runCommand("doctor", [])
-    case "2", "": return runCommand("analyze", [])
+    case "2", "enter": return runCommand("analyze", [])
     case "3": return runCommand("clean", [])
     case "4": return runCommand("artifacts", [])
     case "5": return runCommand("audit", [])
