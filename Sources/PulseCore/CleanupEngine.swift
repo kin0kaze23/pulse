@@ -46,6 +46,18 @@ public struct CleanupEngine {
             items.append(contentsOf: pythonPlan.items)
         }
 
+        if config.profiles.contains(.claude) {
+            let claude = ClaudeEngine()
+            let claudePlan = claude.scan()
+            items.append(contentsOf: claudePlan.items)
+        }
+
+        if config.profiles.contains(.cursor) {
+            let cursor = CursorEngine()
+            let cursorPlan = cursor.scan()
+            items.append(contentsOf: cursorPlan.items)
+        }
+
         let totalSizeMB = items.reduce(0) { $0 + $1.sizeMB }
         return CleanupPlan(items: items, totalSizeMB: totalSizeMB)
     }

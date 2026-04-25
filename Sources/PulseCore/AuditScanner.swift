@@ -25,6 +25,7 @@ public struct AuditIssue: Sendable {
 
     /// Category of the issue for grouping in output.
     public enum Category: String, Codable, Sendable {
+        case aiWorkspace = "AI Workstation"
         case xcode = "Xcode"
         case homebrew = "Homebrew"
         case symlinks = "Symlinks"
@@ -75,6 +76,7 @@ public struct AuditScanner {
     /// Run all audit checks and return a list of issues found.
     public func scan() -> [AuditIssue] {
         var issues: [AuditIssue] = []
+        issues.append(contentsOf: AgentDataAuditScanner().scan())
         issues.append(contentsOf: scanXcodeSimulators())
         issues.append(contentsOf: scanXcodeArchives())
         issues.append(contentsOf: scanHomebrewOrphanedTaps())
@@ -172,7 +174,6 @@ public struct AuditScanner {
     private func scanHomebrewOrphanedTaps() -> [AuditIssue] {
         var issues: [AuditIssue] = []
 
-        let tapsPath = NSString(string: "$(brew --prefix)/Library/Taps").expandingTildeInPath
         // Use a subshell to get the actual brew prefix
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/bash")

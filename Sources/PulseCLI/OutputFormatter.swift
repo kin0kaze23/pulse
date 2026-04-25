@@ -241,7 +241,7 @@ enum Usage {
             "Workspace  \(repo)",
             "Output     \(outputMode) terminal UI",
             "Safety     \(OutputFormatter.green("preview-first")) · \(OutputFormatter.cyan("protected paths")) · stable JSON",
-            "Profiles   xcode · homebrew · node · python",
+            "Profiles   xcode · homebrew · node · python · claude · cursor",
         ])
 
         let actionsPanel = OutputFormatter.panel(title: "Recommended next actions", lines: [
@@ -258,6 +258,8 @@ enum Usage {
             "pulse artifacts --all        Include recently modified projects",
             "pulse audit                  Check stale machine issues",
             "pulse doctor --json          Use in scripts or setup automation",
+            "pulse scan                   Friendly alias for analyze",
+            "pulse cleanup                Friendly alias for clean",
         ])
 
         return """
@@ -292,12 +294,18 @@ enum Usage {
         \(OutputFormatter.command("pulse clean", description: "Preview exactly what Pulse would remove"))
 
         \(OutputFormatter.section("Commands"))
-        \(OutputFormatter.command("pulse analyze", description: "Scan Xcode, Homebrew, Node, and Python caches"))
+        \(OutputFormatter.command("pulse analyze", description: "Scan Xcode, Homebrew, Node, Python, Claude, and Cursor data"))
+        \(OutputFormatter.command("pulse scan", description: "Friendly alias for pulse analyze"))
         \(OutputFormatter.command("pulse artifacts", description: "Find build artifacts in project directories"))
         \(OutputFormatter.command("pulse audit", description: "Audit stale developer-machine issues"))
+        \(OutputFormatter.command("pulse health", description: "Friendly alias for pulse audit"))
+        \(OutputFormatter.command("pulse audit index-bloat", description: "Audit repos that slow AI IDE indexing"))
+        \(OutputFormatter.command("pulse audit agent-data", description: "Audit Claude/Cursor data retention"))
         \(OutputFormatter.command("pulse clean", description: "Preview cleanup for all supported profiles"))
+        \(OutputFormatter.command("pulse cleanup", description: "Friendly alias for pulse clean"))
         \(OutputFormatter.command("pulse clean --profile <name>", description: "Preview or apply one cleanup profile"))
         \(OutputFormatter.command("pulse doctor", description: "Check environment readiness and optional access"))
+        \(OutputFormatter.command("pulse check", description: "Friendly alias for pulse doctor"))
         \(OutputFormatter.command("pulse completion <shell>", description: "Generate shell completion scripts"))
 
         \(OutputFormatter.section("Supported cleanup profiles"))
@@ -305,6 +313,8 @@ enum Usage {
         \(OutputFormatter.command("homebrew", description: "Download cache, old formulae, old casks"))
         \(OutputFormatter.command("node", description: "npm cache, Yarn cache, pnpm store"))
         \(OutputFormatter.command("python", description: "pip, Poetry, and uv caches"))
+        \(OutputFormatter.command("claude", description: "Claude Code logs, caches, and transcripts"))
+        \(OutputFormatter.command("cursor", description: "Cursor IDE caches, logs, and workspace storage"))
 
         \(OutputFormatter.section("Common flags"))
         \(OutputFormatter.command("--dry-run", description: "Preview cleanup without deleting anything"))
@@ -316,6 +326,9 @@ enum Usage {
 
         \(OutputFormatter.section("Examples"))
         \(OutputFormatter.command("pulse analyze", description: "Best first scan for reclaimable cache space"))
+        \(OutputFormatter.command("pulse clean --profile claude", description: "Review Claude Code cleanup items"))
+        \(OutputFormatter.command("pulse clean --profile cursor", description: "Review Cursor cleanup items"))
+        \(OutputFormatter.command("pulse audit index-bloat", description: "Find repos slowing Cursor/VS Code"))
         \(OutputFormatter.command("pulse artifacts --all", description: "Include recently modified project artifacts"))
         \(OutputFormatter.command("pulse clean --profile xcode", description: "Preview or apply one profile"))
         \(OutputFormatter.command("pulse doctor --json", description: "Use in scripts and setup checks"))

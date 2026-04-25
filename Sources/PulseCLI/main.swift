@@ -40,15 +40,23 @@ private func runCommand(_ command: String, _ args: [String]) -> Int32 {
     switch command {
     case "analyze":
         return AnalyzeCommand.run(autoJsonArgs(args))
+    case "scan":
+        return AnalyzeCommand.run(autoJsonArgs(args))
     case "artifacts":
         return ArtifactsCommand.run(autoJsonArgs(args))
     case "audit":
         return AuditCommand.run(autoJsonArgs(args))
+    case "health":
+        return AuditCommand.run(autoJsonArgs(args))
     case "clean":
+        return CleanCommand.run(autoJsonArgs(args))
+    case "cleanup":
         return CleanCommand.run(autoJsonArgs(args))
     case "completion":
         return CompletionCommand.run(args)
     case "doctor":
+        return DoctorCommand.run(autoJsonArgs(args))
+    case "check":
         return DoctorCommand.run(autoJsonArgs(args))
     case "--help", "-h", "help":
         print(Usage.help())

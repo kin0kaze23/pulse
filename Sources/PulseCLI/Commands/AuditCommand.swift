@@ -10,15 +10,22 @@ import PulseCore
 
 enum AuditCommand {
 
+    private enum Mode: String {
+        case general
+        case indexBloat = "index-bloat"
+        case agentData = "agent-data"
+    }
+
     // MARK: - Run
 
     static func run(_ args: [String]) -> Int32 {
         let jsonOutput = args.contains("--json")
+        let mode = parseMode(args)
 
         if args.contains("--help") || args.contains("-h") {
             print(BuildVersion.cliString())
             print()
-            print("Usage: pulse audit [--json]")
+            print("Usage: pulse audit [index-bloat|agent-data] [--json]")
             print()
             print("Scan for developer-machine maintenance issues such as:")
             print(OutputFormatter.item(OutputFormatter.dot, "stale Xcode simulators and caches"))
@@ -26,39 +33,72 @@ enum AuditCommand {
             print(OutputFormatter.item(OutputFormatter.dot, "orphaned Homebrew taps"))
             print(OutputFormatter.item(OutputFormatter.dot, "broken symlinks in developer directories"))
             print(OutputFormatter.item(OutputFormatter.dot, "custom Xcode toolchains"))
+            print(OutputFormatter.item(OutputFormatter.dot, "AI workstation index bloat and agent-data retention"))
             print()
             print("Options:")
+            print(OutputFormatter.command("index-bloat", description: "Audit repos that are likely slowing Cursor/VS Code indexing"))
+            print(OutputFormatter.command("agent-data", description: "Audit Claude/Cursor data retention and cache sprawl"))
             print(OutputFormatter.command("--json", description: "Output as JSON (auto-enabled when piped)"))
             return EXIT_SUCCESS
         }
 
-        let scanner = AuditScanner()
         let issues: [AuditIssue]
 
         if jsonOutput {
-            issues = scanner.scan()
+            issues = scanIssues(for: mode)
         } else {
-            let spinner = OutputFormatter.Spinner(message: "Auditing developer environment...")
+            let spinner = OutputFormatter.Spinner(message: spinnerMessage(for: mode))
             spinner.start()
-            issues = scanner.scan()
+            issues = scanIssues(for: mode)
             spinner.stop(success: true)
             print()
         }
 
         if jsonOutput {
-            return outputJSON(issues)
+            return outputJSON(issues, mode: mode)
         }
 
-        return outputHuman(issues)
+        return outputHuman(issues, mode: mode)
+    }
+
+    private static func parseMode(_ args: [String]) -> Mode {
+        if args.contains(Mode.indexBloat.rawValue) { return .indexBloat }
+        if args.contains(Mode.agentData.rawValue) { return .agentData }
+        return .general
+    }
+
+    private static func scanIssues(for mode: Mode) -> [AuditIssue] {
+        switch mode {
+        case .general:
+            return AuditScanner().scan()
+        case .indexBloat:
+            return IndexBloatAuditScanner().scan()
+        case .agentData:
+            return AgentDataAuditScanner().scan()
+        }
+    }
+
+    private static func spinnerMessage(for mode: Mode) -> String {
+        switch mode {
+        case .general: return "Auditing developer environment..."
+        case .indexBloat: return "Auditing indexing bloat risks..."
+        case .agentData: return "Auditing agent-data retention..."
+        }
     }
 
     // MARK: - Human Output
 
-    private static func outputHuman(_ issues: [AuditIssue]) -> Int32 {
+    private static func outputHuman(_ issues: [AuditIssue], mode: Mode) -> Int32 {
         if issues.isEmpty {
             print(OutputFormatter.bold("Pulse"))
             print()
-            print(OutputFormatter.item(OutputFormatter.check, OutputFormatter.green("No issues found. Your developer environment looks good.")))
+            let message: String
+            switch mode {
+            case .general: message = "No issues found. Your developer environment looks good."
+            case .indexBloat: message = "No obvious indexing bloat found in scanned projects."
+            case .agentData: message = "No significant Claude/Cursor data retention issues found."
+            }
+            print(OutputFormatter.item(OutputFormatter.check, OutputFormatter.green(message)))
             return EXIT_SUCCESS
         }
 
@@ -67,8 +107,15 @@ enum AuditCommand {
         let infoCount = issues.filter { $0.severity == .info }.count
         let totalReclaimable = issues.compactMap { $0.reclaimableMB }.reduce(0, +)
 
+        let title: String
+        switch mode {
+        case .general: title = "Developer Environment Audit"
+        case .indexBloat: title = "Index Bloat Audit"
+        case .agentData: title = "Agent Data Audit"
+        }
+
         print(OutputFormatter.bold("Pulse"))
-        print(OutputFormatter.panel(title: "Developer Environment Audit", lines: [
+        print(OutputFormatter.panel(title: title, lines: [
             "Critical issues  \(criticalCount)",
             "Warnings         \(warningCount)",
             "Info             \(infoCount)",
@@ -77,7 +124,7 @@ enum AuditCommand {
 
         // Group by category
         let grouped = Dictionary(grouping: issues, by: { $0.category })
-        let categoryOrder: [AuditIssue.Category] = [.xcode, .homebrew, .toolchains, .symlinks, .general]
+        let categoryOrder: [AuditIssue.Category] = [.aiWorkspace, .xcode, .homebrew, .toolchains, .symlinks, .general]
 
         for category in categoryOrder {
             guard let categoryIssues = grouped[category] else { continue }
@@ -103,8 +150,16 @@ enum AuditCommand {
         }
 
         // Footer
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Fix critical and warning items first to keep your developer machine healthy.")))
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to clean project build artifacts next.")))
+        switch mode {
+        case .general:
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Fix critical and warning items first to keep your developer machine healthy.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to clean project build artifacts next.")))
+        case .indexBloat:
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Add .cursorignore patterns for generated folders before your next coding session.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to remove old generated folders.")))
+        case .agentData:
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Use '\(OutputFormatter.bold("pulse clean --profile claude"))' or '\(OutputFormatter.bold("pulse clean --profile cursor"))' to review cleanup targets.")))
+        }
 
         return EXIT_SUCCESS
     }
@@ -119,7 +174,7 @@ enum AuditCommand {
 
     // MARK: - JSON Output
 
-    private static func outputJSON(_ issues: [AuditIssue]) -> Int32 {
+    private static func outputJSON(_ issues: [AuditIssue], mode: Mode) -> Int32 {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -128,6 +183,7 @@ enum AuditCommand {
 
         let output = AuditJSON(
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            mode: mode.rawValue,
             totalIssues: issues.count,
             criticalCount: issues.filter { $0.severity == .critical }.count,
             warningCount: issues.filter { $0.severity == .warning }.count,
@@ -164,6 +220,7 @@ struct AuditJSON: Encodable {
     let schemaVersion: String = "1.0.0"
     let command: String = "audit"
     let timestamp: String
+    let mode: String
     let totalIssues: Int
     let criticalCount: Int
     let warningCount: Int

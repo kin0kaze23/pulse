@@ -18,7 +18,7 @@ set -euo pipefail
 
 # Configuration
 REPO_URL="https://github.com/kin0kaze23/pulse.git"
-DEFAULT_TAG="v0.3.0"
+DEFAULT_TAG="v0.3.1"
 TAG=""
 PREFIX=""
 YES_MODE=false

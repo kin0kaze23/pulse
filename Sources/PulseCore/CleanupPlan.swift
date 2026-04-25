@@ -16,6 +16,8 @@ public enum CleanupProfile: String, CaseIterable, Codable {
     case homebrew
     case node
     case python
+    case claude
+    case cursor
     case system
     // v0.4: case docker, case browser
 }

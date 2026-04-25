@@ -17,6 +17,8 @@ enum CleanCommand {
         "homebrew": .homebrew,
         "node": .node,
         "python": .python,
+        "claude": .claude,
+        "cursor": .cursor,
     ]
 
     // MARK: - Run
@@ -128,7 +130,7 @@ enum CleanCommand {
         if let profile = profile {
             profiles = [profile]
         } else {
-            profiles = [.xcode, .homebrew, .node, .python]
+            profiles = [.xcode, .homebrew, .node, .python, .claude, .cursor]
         }
 
         let config = CleanupConfig(profiles: profiles)
@@ -195,7 +197,7 @@ enum CleanCommand {
 
     private enum InteractiveChoice {
         case recommended
-        case all
+        case deepClean
         case profile(CleanupProfile)
         case cancel
     }
@@ -248,12 +250,16 @@ enum CleanCommand {
         CleanupPlan(items: items, totalSizeMB: totalSize(of: items))
     }
 
-    private static func promptInteractiveChoice(plan: CleanupPlan, currentProfile: CleanupProfile?) -> InteractiveChoice {
+    private static func promptInteractiveChoice(plan: CleanupPlan, currentProfile: CleanupProfile?, hasRecommended: Bool) -> InteractiveChoice {
         print()
         print(OutputFormatter.section("Next action"))
-        print(OutputFormatter.item(OutputFormatter.arrow, "Press Enter to clean recommended items"))
+        if hasRecommended {
+            print(OutputFormatter.item(OutputFormatter.arrow, "Press Enter to clean recommended items"))
+        } else {
+            print(OutputFormatter.item(OutputFormatter.arrow, "Press Enter to choose a profile"))
+        }
+        print(OutputFormatter.item(OutputFormatter.arrow, "Press d to deep clean everything shown"))
         print(OutputFormatter.item(OutputFormatter.arrow, "Press p to choose a profile"))
-        print(OutputFormatter.item(OutputFormatter.arrow, "Press a to clean everything shown"))
         print(OutputFormatter.item(OutputFormatter.arrow, "Press q to cancel"))
         print()
         print("Choice: ", terminator: "")
@@ -261,8 +267,8 @@ enum CleanCommand {
 
         let input = TTYInput.readKey() ?? "q"
         switch input {
-        case "enter": return .recommended
-        case "a": return .all
+        case "enter": return hasRecommended ? .recommended : promptProfileChoice(currentProfile: currentProfile)
+        case "d", "a": return .deepClean
         case "p":
             return promptProfileChoice(currentProfile: currentProfile)
         default:
@@ -383,7 +389,7 @@ enum CleanCommand {
             return EXIT_SUCCESS
         }
 
-        switch promptInteractiveChoice(plan: plan, currentProfile: profile) {
+        switch promptInteractiveChoice(plan: plan, currentProfile: profile, hasRecommended: !recommended.isEmpty) {
         case .recommended:
             if recommended.isEmpty {
                 print()
@@ -391,7 +397,7 @@ enum CleanCommand {
                 return EXIT_SUCCESS
             }
             return executeInteractive(plan: subplan(from: recommended), scopeLabel: "recommended items", requireStrongConfirmation: false)
-        case .all:
+        case .deepClean:
             return executeInteractive(plan: plan, scopeLabel: profileLabel, requireStrongConfirmation: true)
         case .profile(let selectedProfile):
             return runDryRun(profile: selectedProfile, json: false, guided: true)
@@ -411,7 +417,7 @@ enum CleanCommand {
             profiles = [profile]
             profileLabel = profile.rawValue
         } else {
-            profiles = [.xcode, .homebrew, .node, .python]
+            profiles = [.xcode, .homebrew, .node, .python, .claude, .cursor]
             profileLabel = "all profiles"
         }
 
