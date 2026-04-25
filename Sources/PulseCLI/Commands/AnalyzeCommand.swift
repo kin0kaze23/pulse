@@ -24,6 +24,8 @@ enum AnalyzeCommand {
             print(OutputFormatter.command("homebrew", description: "Download cache, old formulae, old casks"))
             print(OutputFormatter.command("node", description: "npm cache, Yarn cache, pnpm store"))
             print(OutputFormatter.command("python", description: "pip, Poetry, and uv caches"))
+            print(OutputFormatter.command("bun", description: "Bun install cache"))
+            print(OutputFormatter.command("rust", description: "Cargo registry and git caches"))
             print(OutputFormatter.command("claude", description: "Claude Code logs, caches, and session artifacts"))
             print(OutputFormatter.command("cursor", description: "Cursor IDE caches, logs, and workspace storage"))
             print()
@@ -33,7 +35,7 @@ enum AnalyzeCommand {
         }
 
         let jsonOutput = args.contains("--json")
-        let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .claude, .cursor]
+        let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor]
         let config = CleanupConfig(profiles: allProfiles)
 
         let engine = CleanupEngine()

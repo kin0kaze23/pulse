@@ -46,6 +46,18 @@ public struct CleanupEngine {
             items.append(contentsOf: pythonPlan.items)
         }
 
+        if config.profiles.contains(.bun) {
+            let bun = BunEngine()
+            let bunPlan = bun.scan()
+            items.append(contentsOf: bunPlan.items)
+        }
+
+        if config.profiles.contains(.rust) {
+            let rust = RustEngine()
+            let rustPlan = rust.scan()
+            items.append(contentsOf: rustPlan.items)
+        }
+
         if config.profiles.contains(.claude) {
             let claude = ClaudeEngine()
             let claudePlan = claude.scan()

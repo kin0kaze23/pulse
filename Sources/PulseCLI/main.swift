@@ -48,6 +48,8 @@ private func runCommand(_ command: String, _ args: [String]) -> Int32 {
         return AuditCommand.run(autoJsonArgs(args))
     case "health":
         return AuditCommand.run(autoJsonArgs(args))
+    case "models":
+        return AuditCommand.run(autoJsonArgs(["models"] + args))
     case "clean":
         return CleanCommand.run(autoJsonArgs(args))
     case "cleanup":

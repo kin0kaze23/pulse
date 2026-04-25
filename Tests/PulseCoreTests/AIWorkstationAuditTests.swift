@@ -17,4 +17,9 @@ final class AIWorkstationAuditTests: XCTestCase {
         let issues = AgentDataAuditScanner().scan()
         XCTAssertGreaterThanOrEqual(issues.count, 0)
     }
+
+    func testModelsAudit_DoesNotCrash() {
+        let issues = ModelsAuditScanner().scan()
+        XCTAssertGreaterThanOrEqual(issues.count, 0)
+    }
 }

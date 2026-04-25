@@ -20,6 +20,10 @@ final class AuditCommandTests: XCTestCase {
         XCTAssertEqual(AuditCommand.run(["agent-data"]), EXIT_SUCCESS)
     }
 
+    func testAudit_Models_ReturnsSuccess() {
+        XCTAssertEqual(AuditCommand.run(["models"]), EXIT_SUCCESS)
+    }
+
     func testAudit_Help_ReturnsSuccess() {
         XCTAssertEqual(AuditCommand.run(["--help"]), EXIT_SUCCESS)
     }

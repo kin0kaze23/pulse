@@ -104,3 +104,76 @@ public struct AgentDataAuditScanner {
         return issues.sorted { ($0.reclaimableMB ?? 0) > ($1.reclaimableMB ?? 0) }
     }
 }
+
+public struct ModelsAuditScanner {
+    private let scanner: DirectoryScanner
+    private let fileManager: FileManager
+
+    public init(scanner: DirectoryScanner = DirectoryScanner(), fileManager: FileManager = .default) {
+        self.scanner = scanner
+        self.fileManager = fileManager
+    }
+
+    public func scan() -> [AuditIssue] {
+        var issues: [AuditIssue] = []
+
+        let ollamaRoot = NSString(string: "~/.ollama").expandingTildeInPath
+        let ollamaModels = (ollamaRoot as NSString).appendingPathComponent("models")
+        let ollamaSize = scanner.directorySizeMB(ollamaModels)
+        if ollamaSize >= 1024 {
+            let logsSize = scanner.directorySizeMB((ollamaRoot as NSString).appendingPathComponent("logs"))
+            let description = logsSize > 25
+                ? "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS. Logs are also present in ~/.ollama/logs."
+                : "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS."
+            issues.append(AuditIssue(
+                title: "Ollama models using \(formatSize(ollamaSize))",
+                description: description,
+                reclaimableMB: ollamaSize,
+                severity: ollamaSize >= 10 * 1024 ? .warning : .info,
+                category: .aiWorkspace,
+                path: ollamaModels
+            ))
+        }
+
+        let lmStudioPaths = [
+            NSString(string: "~/.lmstudio/models").expandingTildeInPath,
+            NSString(string: "~/.cache/lm-studio/models").expandingTildeInPath,
+        ]
+
+        for path in lmStudioPaths where fileManager.fileExists(atPath: path) {
+            let size = scanner.directorySizeMB(path)
+            guard size >= 1024 else { continue }
+            issues.append(AuditIssue(
+                title: "LM Studio models using \(formatSize(size))",
+                description: "Review stale or duplicate local model files before deleting. If you mirror Ollama models into LM Studio, watch for duplicate storage.",
+                reclaimableMB: size,
+                severity: size >= 10 * 1024 ? .warning : .info,
+                category: .aiWorkspace,
+                path: path
+            ))
+        }
+
+        if ollamaSize >= 1024 {
+            for path in lmStudioPaths where fileManager.fileExists(atPath: path) {
+                let lmSize = scanner.directorySizeMB(path)
+                guard lmSize >= 1024 else { continue }
+                issues.append(AuditIssue(
+                    title: "Potential duplicate model storage across Ollama and LM Studio",
+                    description: "Both Ollama and LM Studio model directories are large. Review whether the same models or quantizations are stored twice. Prefer a single source of truth or symlink strategy where appropriate.",
+                    reclaimableMB: nil,
+                    severity: .info,
+                    category: .aiWorkspace,
+                    path: nil
+                ))
+                break
+            }
+        }
+
+        return issues.sorted { ($0.reclaimableMB ?? 0) > ($1.reclaimableMB ?? 0) }
+    }
+
+    private func formatSize(_ mb: Double) -> String {
+        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
+        return String(format: "%.0f MB", mb)
+    }
+}

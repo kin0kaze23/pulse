@@ -14,6 +14,7 @@ enum AuditCommand {
         case general
         case indexBloat = "index-bloat"
         case agentData = "agent-data"
+        case models
     }
 
     // MARK: - Run
@@ -25,7 +26,7 @@ enum AuditCommand {
         if args.contains("--help") || args.contains("-h") {
             print(BuildVersion.cliString())
             print()
-            print("Usage: pulse audit [index-bloat|agent-data] [--json]")
+            print("Usage: pulse audit [index-bloat|agent-data|models] [--json]")
             print()
             print("Scan for developer-machine maintenance issues such as:")
             print(OutputFormatter.item(OutputFormatter.dot, "stale Xcode simulators and caches"))
@@ -38,6 +39,7 @@ enum AuditCommand {
             print("Options:")
             print(OutputFormatter.command("index-bloat", description: "Audit repos that are likely slowing Cursor/VS Code indexing"))
             print(OutputFormatter.command("agent-data", description: "Audit Claude/Cursor data retention and cache sprawl"))
+            print(OutputFormatter.command("models", description: "Audit Ollama / LM Studio model storage and duplication risk"))
             print(OutputFormatter.command("--json", description: "Output as JSON (auto-enabled when piped)"))
             return EXIT_SUCCESS
         }
@@ -64,6 +66,7 @@ enum AuditCommand {
     private static func parseMode(_ args: [String]) -> Mode {
         if args.contains(Mode.indexBloat.rawValue) { return .indexBloat }
         if args.contains(Mode.agentData.rawValue) { return .agentData }
+        if args.contains(Mode.models.rawValue) { return .models }
         return .general
     }
 
@@ -75,6 +78,8 @@ enum AuditCommand {
             return IndexBloatAuditScanner().scan()
         case .agentData:
             return AgentDataAuditScanner().scan()
+        case .models:
+            return ModelsAuditScanner().scan()
         }
     }
 
@@ -83,6 +88,7 @@ enum AuditCommand {
         case .general: return "Auditing developer environment..."
         case .indexBloat: return "Auditing indexing bloat risks..."
         case .agentData: return "Auditing agent-data retention..."
+        case .models: return "Auditing local model storage..."
         }
     }
 
@@ -97,6 +103,7 @@ enum AuditCommand {
             case .general: message = "No issues found. Your developer environment looks good."
             case .indexBloat: message = "No obvious indexing bloat found in scanned projects."
             case .agentData: message = "No significant Claude/Cursor data retention issues found."
+            case .models: message = "No significant local model storage issues found."
             }
             print(OutputFormatter.item(OutputFormatter.check, OutputFormatter.green(message)))
             return EXIT_SUCCESS
@@ -112,6 +119,7 @@ enum AuditCommand {
         case .general: title = "Developer Environment Audit"
         case .indexBloat: title = "Index Bloat Audit"
         case .agentData: title = "Agent Data Audit"
+        case .models: title = "Model Storage Audit"
         }
 
         print(OutputFormatter.bold("Pulse"))
@@ -159,6 +167,9 @@ enum AuditCommand {
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to remove old generated folders.")))
         case .agentData:
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Use '\(OutputFormatter.bold("pulse clean --profile claude"))' or '\(OutputFormatter.bold("pulse clean --profile cursor"))' to review cleanup targets.")))
+        case .models:
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Review large Ollama or LM Studio model directories before deleting anything.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("If both tools are large, check whether the same models are stored twice.")))
         }
 
         return EXIT_SUCCESS

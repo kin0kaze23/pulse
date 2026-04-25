@@ -42,6 +42,7 @@ pulse artifacts # Find build artifacts in your projects
 pulse audit     # Check dev environment health
 pulse audit index-bloat  # Find repos slowing AI IDE indexing
 pulse audit agent-data   # Review Claude/Cursor data retention
+pulse audit models       # Review Ollama / LM Studio model storage
 pulse doctor    # Verify your setup
 ```
 
@@ -78,6 +79,7 @@ pulse clean --profile xcode --apply
 | `pulse audit` | Scan dev environment (stale simulators, orphaned taps, dead symlinks, old toolchains) | ✅ |
 | `pulse audit index-bloat` | Audit repos that slow Cursor / VS Code indexing | ✅ |
 | `pulse audit agent-data` | Audit Claude/Cursor data retention and cache sprawl | ✅ |
+| `pulse audit models` | Audit Ollama / LM Studio model storage and duplication risk | ✅ |
 | `pulse clean` | Safe default preview for all cleanup profiles | ✅ |
 | `pulse cleanup` | Friendly alias for `pulse clean` | ✅ |
 | `pulse clean --dry-run` | Preview what would be cleaned | ✅ |
@@ -104,6 +106,8 @@ pulse audit | jq '.criticalCount'   # 0
 | `homebrew` | Download cache, old formulae/casks | `brew cleanup` |
 | `node` | npm cache, Yarn cache, pnpm store | File deletion |
 | `python` | pip, Poetry, and uv caches | File deletion |
+| `bun` | Bun install cache | File deletion |
+| `rust` | Cargo registry and git caches | File deletion |
 | `claude` | Claude Code logs, caches, transcripts, session artifacts | File deletion |
 | `cursor` | Cursor caches, logs, extension caches, workspace storage | File deletion |
 
