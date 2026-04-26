@@ -42,11 +42,11 @@ final class AIWorkstationAuditTests: XCTestCase {
 
         let nodeModules = project.appendingPathComponent("node_modules")
         try FileManager.default.createDirectory(at: nodeModules, withIntermediateDirectories: true)
-        try Data(repeating: 0, count: 60 * 1024 * 1024).write(to: nodeModules.appendingPathComponent("blob.bin"))
+        try Data(repeating: 0, count: 140 * 1024 * 1024).write(to: nodeModules.appendingPathComponent("blob.bin"))
 
         let nextDir = project.appendingPathComponent(".next")
         try FileManager.default.createDirectory(at: nextDir, withIntermediateDirectories: true)
-        try Data(repeating: 0, count: 60 * 1024 * 1024).write(to: nextDir.appendingPathComponent("blob.bin"))
+        try Data(repeating: 0, count: 140 * 1024 * 1024).write(to: nextDir.appendingPathComponent("blob.bin"))
 
         let config = PulseConfig(artifactScanPaths: [tempDir.path])
         let issues = IndexBloatAuditScanner().scan(config: config)
