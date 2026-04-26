@@ -58,6 +58,12 @@ public struct CleanupEngine {
             items.append(contentsOf: rustPlan.items)
         }
 
+        if config.profiles.contains(.installers) {
+            let installers = InstallerEngine()
+            let installerPlan = installers.scan()
+            items.append(contentsOf: installerPlan.items)
+        }
+
         if config.profiles.contains(.claude) {
             let claude = ClaudeEngine()
             let claudePlan = claude.scan()

@@ -46,6 +46,16 @@ pulse audit models       # Review Ollama / LM Studio model storage
 pulse doctor    # Verify your setup
 ```
 
+### The 5 commands most users need
+
+```bash
+pulse         # open the dashboard
+pulse doctor  # verify setup
+pulse analyze # see reclaimable space
+pulse clean   # guided cleanup flow
+pulse audit   # check AI workstation issues
+```
+
 ### Recommended First-Time Flow
 
 ```bash
@@ -56,9 +66,9 @@ pulse clean
 
 In a normal terminal, `pulse clean` shows a guided preview and lets you:
 
-- press **Enter** to clean recommended items
+- press **Enter** to clean recommended items (or choose a profile if everything needs review)
 - press **p** to choose a profile
-- press **a** to clean everything shown
+- press **d** to deep clean everything shown
 - press **q** to cancel
 
 Then, if the preview looks right:
@@ -110,6 +120,20 @@ pulse audit | jq '.criticalCount'   # 0
 | `rust` | Cargo registry and git caches | File deletion |
 | `claude` | Claude Code logs, caches, transcripts, session artifacts | File deletion |
 | `cursor` | Cursor caches, logs, extension caches, workspace storage | File deletion |
+| `installers` | Old `.dmg`, `.pkg`, `.zip`, `.tar.gz` installers in Downloads/Desktop | File deletion |
+
+### Recommended user flow
+
+```mermaid
+flowchart TD
+    A[Install Pulse] --> B[pulse doctor]
+    B --> C[pulse analyze]
+    C --> D[pulse clean]
+    D --> E[pulse audit]
+    E --> F[pulse audit index-bloat]
+    E --> G[pulse audit agent-data]
+    E --> H[pulse audit models]
+```
 
 ### Artifact Types (16 supported)
 

@@ -241,7 +241,7 @@ enum Usage {
             "Workspace  \(repo)",
             "Output     \(outputMode) terminal UI",
             "Safety     \(OutputFormatter.green("preview-first")) · \(OutputFormatter.cyan("protected paths")) · stable JSON",
-            "Profiles   xcode · homebrew · node · python · bun · rust · claude · cursor",
+            "Profiles   xcode · homebrew · node · python · bun · rust · claude · cursor · installers",
         ])
 
         let actionsPanel = OutputFormatter.panel(title: "Recommended next actions", lines: [
@@ -295,7 +295,7 @@ enum Usage {
         \(OutputFormatter.command("pulse clean", description: "Preview exactly what Pulse would remove"))
 
         \(OutputFormatter.section("Commands"))
-        \(OutputFormatter.command("pulse analyze", description: "Scan Xcode, Homebrew, Node, Python, Bun, Rust, Claude, and Cursor data"))
+        \(OutputFormatter.command("pulse analyze", description: "Scan Xcode, Homebrew, Node, Python, Bun, Rust, Claude, Cursor, and installers"))
         \(OutputFormatter.command("pulse scan", description: "Friendly alias for pulse analyze"))
         \(OutputFormatter.command("pulse artifacts", description: "Find build artifacts in project directories"))
         \(OutputFormatter.command("pulse audit", description: "Audit stale developer-machine issues"))
@@ -319,6 +319,7 @@ enum Usage {
         \(OutputFormatter.command("rust", description: "Cargo registry and git caches"))
         \(OutputFormatter.command("claude", description: "Claude Code logs, caches, and transcripts"))
         \(OutputFormatter.command("cursor", description: "Cursor IDE caches, logs, and workspace storage"))
+        \(OutputFormatter.command("installers", description: "Old installers and archives in Downloads/Desktop"))
 
         \(OutputFormatter.section("Common flags"))
         \(OutputFormatter.command("--dry-run", description: "Preview cleanup without deleting anything"))
@@ -334,6 +335,7 @@ enum Usage {
         \(OutputFormatter.command("pulse clean --profile cursor", description: "Review Cursor cleanup items"))
         \(OutputFormatter.command("pulse clean --profile bun", description: "Review Bun cache cleanup"))
         \(OutputFormatter.command("pulse clean --profile rust", description: "Review Rust/Cargo cache cleanup"))
+        \(OutputFormatter.command("pulse clean --profile installers", description: "Review stale installer/archive cleanup"))
         \(OutputFormatter.command("pulse audit index-bloat", description: "Find repos slowing Cursor/VS Code"))
         \(OutputFormatter.command("pulse audit models", description: "Review Ollama / LM Studio model storage"))
         \(OutputFormatter.command("pulse artifacts --all", description: "Include recently modified project artifacts"))

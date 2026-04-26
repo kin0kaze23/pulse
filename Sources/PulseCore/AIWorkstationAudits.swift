@@ -43,9 +43,16 @@ public struct IndexBloatAuditScanner {
                 let hasCursorIgnore = fileManager.fileExists(atPath: (projectPath as NSString).appendingPathComponent(".cursorignore"))
                 let top = offenders.sorted { $0.1 > $1.1 }.prefix(3)
                 let offenderText = top.map { "\($0.0) (\(formatSize($0.1)))" }.joined(separator: ", ")
-                let suggestion = hasCursorIgnore
-                    ? "Review .cursorignore and watcher/search excludes for generated folders."
-                    : "Add a .cursorignore for generated folders like node_modules, build, dist, .next, target, and coverage."
+                let patterns = suggestedIgnorePatterns(for: offenders.map { $0.0 })
+                let suggestionHeader = hasCursorIgnore
+                    ? "Suggested .cursorignore additions:"
+                    : "Suggested .cursorignore:"
+                let suggestion = ([
+                    hasCursorIgnore
+                        ? "Review .cursorignore and watcher/search excludes for generated folders."
+                        : "Add a .cursorignore to keep generated folders out of Cursor/VS Code indexing.",
+                    suggestionHeader,
+                ] + patterns.map { "  \($0)" }).joined(separator: "\n")
 
                 issues.append(AuditIssue(
                     title: "Index bloat risk in \(child)",
@@ -69,6 +76,12 @@ public struct IndexBloatAuditScanner {
     private func formatSize(_ mb: Double) -> String {
         if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
         return String(format: "%.0f MB", mb)
+    }
+
+    private func suggestedIgnorePatterns(for names: [String]) -> [String] {
+        let order = ["node_modules", ".next", ".nuxt", "dist", "build", "coverage", ".build", "target", ".venv", "venv", "__pycache__"]
+        let set = Set(names)
+        return order.filter { set.contains($0) }
     }
 }
 

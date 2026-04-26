@@ -21,6 +21,7 @@ enum CleanCommand {
         "rust": .rust,
         "claude": .claude,
         "cursor": .cursor,
+        "installers": .installers,
     ]
 
     // MARK: - Run
@@ -132,7 +133,7 @@ enum CleanCommand {
         if let profile = profile {
             profiles = [profile]
         } else {
-            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor]
+            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers]
         }
 
         let config = CleanupConfig(profiles: profiles)
@@ -324,6 +325,17 @@ enum CleanCommand {
     }
 
     private static func outputApplyResult(_ result: CleanupResult) -> Int32 {
+        let cleanedCount = result.steps.filter(\.success).count
+        let failedCount = result.steps.filter { !$0.success }.count
+        let skippedCount = result.skipped.count
+
+        print(OutputFormatter.panel(title: "Cleanup Complete", lines: [
+            "Freed now       \(OutputFormatter.formatSizeMB(result.totalFreedMB))",
+            "Cleaned items   \(cleanedCount)",
+            "Skipped items   \(skippedCount)",
+            "Failed items    \(failedCount)",
+        ]))
+
         if result.steps.isEmpty && result.skipped.isEmpty {
             print("  No items were cleaned.")
         } else {
@@ -345,6 +357,13 @@ enum CleanCommand {
         } else {
             print("  \(OutputFormatter.bold("Total freed:")) 0 MB")
         }
+
+        print()
+        print(OutputFormatter.actionFooter([
+            "Run 'pulse analyze' to refresh reclaimable space",
+            "Run 'pulse audit models' if AI model storage is a concern",
+            "Run 'pulse artifacts' to review project build junk",
+        ]))
 
         return result.failureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE
     }
@@ -419,7 +438,7 @@ enum CleanCommand {
             profiles = [profile]
             profileLabel = profile.rawValue
         } else {
-            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor]
+            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers]
             profileLabel = "all profiles"
         }
 

@@ -86,6 +86,11 @@ final class CleanCommandTests: XCTestCase {
         XCTAssertEqual(exitCode, EXIT_SUCCESS)
     }
 
+    func testClean_InstallersProfile_DryRunSucceeds() {
+        let exitCode = CleanCommand.run(["--profile", "installers", "--dry-run"])
+        XCTAssertEqual(exitCode, EXIT_SUCCESS)
+    }
+
     // MARK: - Dry Run: All Profiles
 
     func testClean_AllProfiles_DryRunSucceeds() {

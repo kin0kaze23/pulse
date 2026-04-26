@@ -20,6 +20,7 @@ public enum CleanupProfile: String, CaseIterable, Codable {
     case rust
     case claude
     case cursor
+    case installers
     case system
     // v0.4: case docker, case browser
 }
