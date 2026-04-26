@@ -163,13 +163,14 @@ enum AuditCommand {
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Fix critical and warning items first to keep your developer machine healthy.")))
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to clean project build artifacts next.")))
         case .indexBloat:
-            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Add .cursorignore patterns for generated folders before your next coding session.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Copy the suggested .cursorignore / exclude patterns into your repo before the next AI coding session.")))
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse artifacts"))' to remove old generated folders.")))
         case .agentData:
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Use '\(OutputFormatter.bold("pulse clean --profile claude"))' or '\(OutputFormatter.bold("pulse clean --profile cursor"))' to review cleanup targets.")))
         case .models:
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Review large Ollama or LM Studio model directories before deleting anything.")))
             print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("If both tools are large, check whether the same models are stored twice.")))
+            print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Prefer one primary model store or move Ollama with OLLAMA_MODELS if needed.")))
         }
 
         return EXIT_SUCCESS

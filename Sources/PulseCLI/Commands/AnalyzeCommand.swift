@@ -99,8 +99,20 @@ enum AnalyzeCommand {
 
         // Footer
         print()
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean"))' to preview cleanup.")))
-        print(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Run '\(OutputFormatter.bold("pulse clean --profile <name> --apply"))' to execute.")))
+        var nextSteps = [
+            "Run 'pulse clean' to review and clean recommended items",
+        ]
+        let profiles = Set(plan.items.map(\.profile))
+        if profiles.contains(.claude) || profiles.contains(.cursor) {
+            nextSteps.append("Run 'pulse audit agent-data' to review retained AI tool data")
+        }
+        if profiles.contains(.bun) || profiles.contains(.rust) {
+            nextSteps.append("Run 'pulse artifacts' to remove old generated project junk too")
+        }
+        if profiles.contains(.installers) {
+            nextSteps.append("Run 'pulse clean --profile installers' to review old installers")
+        }
+        print(OutputFormatter.actionFooter(nextSteps))
         print(OutputFormatter.safetyFootnote())
 
         return EXIT_SUCCESS

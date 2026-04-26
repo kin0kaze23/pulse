@@ -52,7 +52,9 @@ public struct IndexBloatAuditScanner {
                         ? "Review .cursorignore and watcher/search excludes for generated folders."
                         : "Add a .cursorignore to keep generated folders out of Cursor/VS Code indexing.",
                     suggestionHeader,
-                ] + patterns.map { "  \($0)" }).joined(separator: "\n")
+                ] + patterns.map { "  \($0)" } + [
+                    "Suggested files.watcherExclude / search.exclude keys:",
+                ] + patterns.map { "  \($0): true" }).joined(separator: "\n")
 
                 issues.append(AuditIssue(
                     title: "Index bloat risk in \(child)",
@@ -132,12 +134,14 @@ public struct ModelsAuditScanner {
 
         let ollamaRoot = NSString(string: "~/.ollama").expandingTildeInPath
         let ollamaModels = (ollamaRoot as NSString).appendingPathComponent("models")
+        let ollamaTopEntries = topEntries(in: ollamaModels)
         let ollamaSize = scanner.directorySizeMB(ollamaModels)
         if ollamaSize >= 1024 {
             let logsSize = scanner.directorySizeMB((ollamaRoot as NSString).appendingPathComponent("logs"))
+            let topEntryText = ollamaTopEntries.isEmpty ? "" : " Top entries: \(ollamaTopEntries.joined(separator: ", "))."
             let description = logsSize > 25
-                ? "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS. Logs are also present in ~/.ollama/logs."
-                : "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS."
+                ? "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS. Logs are also present in ~/.ollama/logs.\(topEntryText)"
+                : "Large Ollama model storage detected. Review unused models and consider moving models with OLLAMA_MODELS.\(topEntryText)"
             issues.append(AuditIssue(
                 title: "Ollama models using \(formatSize(ollamaSize))",
                 description: description,
@@ -156,9 +160,11 @@ public struct ModelsAuditScanner {
         for path in lmStudioPaths where fileManager.fileExists(atPath: path) {
             let size = scanner.directorySizeMB(path)
             guard size >= 1024 else { continue }
+            let topEntriesText = topEntries(in: path)
+            let suffix = topEntriesText.isEmpty ? "" : " Top entries: \(topEntriesText.joined(separator: ", "))."
             issues.append(AuditIssue(
                 title: "LM Studio models using \(formatSize(size))",
-                description: "Review stale or duplicate local model files before deleting. If you mirror Ollama models into LM Studio, watch for duplicate storage.",
+                description: "Review stale or duplicate local model files before deleting. If you mirror Ollama models into LM Studio, watch for duplicate storage.\(suffix)",
                 reclaimableMB: size,
                 severity: size >= 10 * 1024 ? .warning : .info,
                 category: .aiWorkspace,
@@ -188,5 +194,10 @@ public struct ModelsAuditScanner {
     private func formatSize(_ mb: Double) -> String {
         if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
         return String(format: "%.0f MB", mb)
+    }
+
+    private func topEntries(in path: String) -> [String] {
+        guard let entries = try? fileManager.contentsOfDirectory(atPath: path) else { return [] }
+        return Array(entries.prefix(3))
     }
 }

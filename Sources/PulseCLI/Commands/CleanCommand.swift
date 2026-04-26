@@ -362,6 +362,7 @@ enum CleanCommand {
         print(OutputFormatter.actionFooter([
             "Run 'pulse analyze' to refresh reclaimable space",
             "Run 'pulse audit models' if AI model storage is a concern",
+            "Run 'pulse audit index-bloat' if Cursor/VS Code still feels slow",
             "Run 'pulse artifacts' to review project build junk",
         ]))
 
@@ -379,6 +380,7 @@ enum CleanCommand {
             print(OutputFormatter.item(OutputFormatter.sparkles, OutputFormatter.green("Nothing to clean — all caches are below thresholds.")))
             print(OutputFormatter.actionFooter([
                 "Run 'pulse artifacts' to check project build artifacts",
+                "Run 'pulse audit models' to review local model storage",
                 "Run 'pulse audit' to check stale machine issues",
             ]))
             return EXIT_SUCCESS
