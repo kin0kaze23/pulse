@@ -21,8 +21,9 @@ public enum CleanupProfile: String, CaseIterable, Codable {
     case claude
     case cursor
     case installers
+    case browser
+    case docker
     case system
-    // v0.4: case docker, case browser
 }
 
 // MARK: - Deletion Strategy
