@@ -231,56 +231,34 @@ enum OutputFormatter {
 
 enum Usage {
     static func landingScreen() -> String {
-        let cwd = FileManager.default.currentDirectoryPath
-        let repo = URL(fileURLWithPath: cwd).lastPathComponent
-        let outputMode = isTTY ? "standard" : "minimal"
-        let readiness = "alpha-ready"
-
-        let statusPanel = OutputFormatter.panel(title: "Status", lines: [
-            "Readiness  \(OutputFormatter.green(readiness))",
-            "Workspace  \(repo)",
-            "Output     \(outputMode) terminal UI",
-            "Safety     \(OutputFormatter.green("preview-first")) · \(OutputFormatter.cyan("protected paths")) · stable JSON",
-            "Profiles   xcode · homebrew · node · python · bun · rust · claude · cursor · installers",
-        ])
-
-        let actionsPanel = OutputFormatter.panel(title: "Recommended next actions", lines: [
-            "[1] pulse doctor     Verify setup and permissions",
-            "[2] pulse analyze    See reclaimable cache space",
-            "[3] pulse clean      Preview safe cleanup by default",
-            "[4] pulse artifacts  Find project build artifacts",
-            "[5] pulse audit      Check stale machine issues",
-        ])
-
-        let commandsPanel = OutputFormatter.panel(title: "Common commands", lines: [
-            "pulse clean                  Default safe preview for all profiles",
-            "pulse clean --profile xcode Preview one cleanup profile",
-            "pulse artifacts --all        Include recently modified projects",
-            "pulse audit                  Check stale machine issues",
-            "pulse doctor --json          Use in scripts or setup automation",
-            "pulse scan                   Friendly alias for analyze",
-            "pulse cleanup                Friendly alias for clean",
-            "pulse audit models           Review local model storage",
-        ])
+        // Modern "Hero" layout: Minimalist, Action-Oriented, Premium.
+        // We use the 'create-agent-tui' skill principles:
+        // 1. Clear hierarchy (Hero action is dominant).
+        // 2. Safety assurance is present but not intrusive.
+        // 3. Less visual noise (no nested boxes).
 
         return """
         \(OutputFormatter.bold(BuildVersion.cliString()))
-        \(OutputFormatter.dim("Safe cleanup and machine audit for macOS developers"))
+        \(OutputFormatter.dim("AI Workstation Cleanup — Safe, Preview-First"))
 
-        \(statusPanel)
+        \(OutputFormatter.section("Action"))
+        \(OutputFormatter.bold(OutputFormatter.green("  Clean your workstation")))
+        \(OutputFormatter.dim("  Safely reclaim space from caches, logs, and old artifacts."))
 
-        \(actionsPanel)
+        \(OutputFormatter.section("Advanced"))
+        \(OutputFormatter.dim("  Analyze"))      \(OutputFormatter.dim("View reclaimable cache space"))
+        \(OutputFormatter.dim("  Audit"))        \(OutputFormatter.dim("Check for stale machine issues"))
+        \(OutputFormatter.dim("  Artifacts"))    \(OutputFormatter.dim("Find project build junk"))
+        \(OutputFormatter.dim("  Doctor"))       \(OutputFormatter.dim("Health check & diagnostics"))
 
-        \(commandsPanel)
+        \(OutputFormatter.section("Trust"))
+        \(OutputFormatter.dim("  Preview-first · Protected paths · Stable JSON"))
 
-        \(OutputFormatter.section("Safety promise"))
-        \(OutputFormatter.item(OutputFormatter.check, "Preview-first by default"))
-        \(OutputFormatter.item(OutputFormatter.check, "Protected paths blocked in code"))
-        \(OutputFormatter.item(OutputFormatter.check, "Stable JSON for automation"))
-
-        \(OutputFormatter.section("Action prompt"))
-        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Press 1–5 to launch a recommended action.")))
-        \(OutputFormatter.item(OutputFormatter.arrow, OutputFormatter.dim("Type h for full help, or q to quit.")))
+        \(OutputFormatter.section("Input"))
+        \(OutputFormatter.bold(OutputFormatter.cyan("  [Enter]")))  \(OutputFormatter.dim("Clean recommended items"))
+        \(OutputFormatter.bold(OutputFormatter.cyan("  [a]")))      \(OutputFormatter.dim("Clean everything shown"))
+        \(OutputFormatter.bold(OutputFormatter.cyan("  [q]")))      \(OutputFormatter.dim("Quit"))
+        \(OutputFormatter.dim("  [?]"))            \(OutputFormatter.dim("Help"))
         """
     }
 

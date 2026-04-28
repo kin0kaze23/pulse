@@ -19,6 +19,7 @@ private func autoJsonArgs(_ args: [String]) -> [String] {
 // MARK: - Unified Pulse Runner
 
 private func runUnified() -> Int32 {
+    // Hero Header
     print(OutputFormatter.bold("✨") + " " + OutputFormatter.bold("Pulse"))
     print(OutputFormatter.dim("AI Workstation Cleanup — Safe, Preview-First"))
     print()
@@ -40,7 +41,7 @@ private func runUnified() -> Int32 {
         return EXIT_SUCCESS
     }
 
-    // Phase 2: Show summary
+    // Phase 2: Show summary (Dashboard)
     let recommended = plan.items.filter { item in
         item.warningMessage == nil && !item.requiresAppClosed && item.priority != .low && item.skipReason == nil
     }
@@ -55,7 +56,7 @@ private func runUnified() -> Int32 {
     // Show recommended items
     if !recommended.isEmpty {
         print()
-        print(OutputFormatter.bold("Recommended (safe to clean)"))
+        print(OutputFormatter.section("Recommended (Safe to Clean)"))
         for item in recommended {
             print(OutputFormatter.item(OutputFormatter.check, "\(item.name) — \(OutputFormatter.formatSizeMB(item.sizeMB))"))
         }
@@ -64,7 +65,7 @@ private func runUnified() -> Int32 {
     // Show review items
     if !review.isEmpty {
         print()
-        print(OutputFormatter.bold("Review before cleaning"))
+        print(OutputFormatter.section("Review Before Cleaning"))
         for item in review {
             let warning = item.warningMessage ?? "Requires attention"
             print(OutputFormatter.item(OutputFormatter.warn, "\(item.name) — \(OutputFormatter.formatSizeMB(item.sizeMB))"))
@@ -75,9 +76,12 @@ private func runUnified() -> Int32 {
     print()
     print(OutputFormatter.safetyFootnote())
 
-    // Phase 3: Simple confirmation
+    // Phase 3: Call to Action
     print()
-    print(OutputFormatter.bold("Clean recommended items?") + " " + OutputFormatter.dim("[Enter = clean, 'a' = clean all, 'q' = quit]"))
+    print(OutputFormatter.section("✨ Action"))
+    print(OutputFormatter.item(OutputFormatter.bold(OutputFormatter.cyan("[Enter]")), "Clean recommended items"))
+    print(OutputFormatter.item(OutputFormatter.bold(OutputFormatter.cyan("[a]")), "Clean everything shown"))
+    print(OutputFormatter.item(OutputFormatter.bold(OutputFormatter.cyan("[q]")), "Quit"))
     fflush(stdout)
 
     let input = (readLine() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -107,7 +111,7 @@ private func runUnified() -> Int32 {
     let cleanPlan = CleanupPlan(items: itemsToClean, totalSizeMB: itemsToClean.reduce(0) { $0 + $1.sizeMB })
     let result = CleanupEngine().apply(plan: cleanPlan, config: config)
 
-    // Phase 5: Summary
+    // Phase 5: Success Summary
     print()
     let cleanedCount = result.steps.filter { $0.success }.count
     print(OutputFormatter.panel(title: "✨ Cleanup Complete", lines: [
@@ -118,7 +122,7 @@ private func runUnified() -> Int32 {
 
     // Show what was cleaned
     print()
-    print(OutputFormatter.bold("Cleaned"))
+    print(OutputFormatter.section("Cleaned"))
     for step in result.steps where step.success {
         print(OutputFormatter.item(OutputFormatter.check, "\(step.name) — \(OutputFormatter.formatSizeMB(step.freedMB))"))
     }
@@ -126,7 +130,7 @@ private func runUnified() -> Int32 {
     // Show what was skipped
     if !result.skipped.isEmpty {
         print()
-        print(OutputFormatter.bold("Skipped"))
+        print(OutputFormatter.section("Skipped"))
         for skipped in result.skipped {
             print(OutputFormatter.item(OutputFormatter.dot, "\(skipped.name) — \(OutputFormatter.dim(skipped.reason))"))
         }
