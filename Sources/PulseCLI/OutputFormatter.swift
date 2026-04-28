@@ -231,7 +231,7 @@ enum OutputFormatter {
 
 enum Usage {
     static func landingScreen() -> String {
-        // Modern "Hero" layout: Minimalist, Action-Oriented, Premium.
+        // Modern "Hero" layout with Menu Selection.
         // We use the 'create-agent-tui' skill principles:
         // 1. Clear hierarchy (Hero action is dominant).
         // 2. Safety assurance is present but not intrusive.
@@ -259,6 +259,24 @@ enum Usage {
         \(OutputFormatter.bold(OutputFormatter.cyan("  [a]")))      \(OutputFormatter.dim("Clean everything shown"))
         \(OutputFormatter.bold(OutputFormatter.cyan("  [q]")))      \(OutputFormatter.dim("Quit"))
         \(OutputFormatter.dim("  [?]"))            \(OutputFormatter.dim("Help"))
+        """
+    }
+
+    static func menuScreen() -> String {
+        return """
+        \(OutputFormatter.bold(BuildVersion.cliString()))
+        \(OutputFormatter.dim("AI Workstation Cleanup — Safe, Preview-First"))
+
+        \(OutputFormatter.section("✨ Top Commands"))
+        \(OutputFormatter.item(OutputFormatter.cyan("1"), "Clean Workstation"))
+        \(OutputFormatter.item(OutputFormatter.cyan("2"), "Analyze Space"))
+        \(OutputFormatter.item(OutputFormatter.cyan("3"), "Clean Browser Cache"))
+        \(OutputFormatter.item(OutputFormatter.cyan("4"), "Clean Docker"))
+        \(OutputFormatter.item(OutputFormatter.cyan("5"), "Audit AI Models"))
+        \(OutputFormatter.item(OutputFormatter.cyan("6"), "Check Health (Doctor)"))
+
+        \(OutputFormatter.section("Input"))
+        \(OutputFormatter.dim("  Select a command (1-6) or type 'q' to quit"))
         """
     }
 

@@ -18,17 +18,44 @@ private func autoJsonArgs(_ args: [String]) -> [String] {
 
 // MARK: - Unified Pulse Runner
 
-private func runUnified() -> Int32 {
+private func runMenu() -> Int32 {
+    print(Usage.menuScreen())
+    print()
+    print(OutputFormatter.bold("Choice:"), terminator: " ")
+    fflush(stdout)
+
+    let input = (readLine() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+    switch input {
+    case "1": return runCleanWorkstation()
+    case "2": return AnalyzeCommand.run([])
+    case "3": return CleanCommand.run(["--profile", "browser"])
+    case "4": return CleanCommand.run(["--profile", "docker"])
+    case "5": return AuditCommand.run(["models"])
+    case "6": return DoctorCommand.run([])
+    case "q", "quit", "exit":
+        print(OutputFormatter.dim("Exited Pulse. Happy Coding!"))
+        return EXIT_SUCCESS
+    case "h", "help", "?":
+        print(Usage.help())
+        return EXIT_SUCCESS
+    default:
+        print(OutputFormatter.red("Error: Unknown command '\(input)'"))
+        return runMenu()
+    }
+}
+
+private func runCleanWorkstation() -> Int32 {
     // Hero Header
-    print(OutputFormatter.bold("✨") + " " + OutputFormatter.bold("Pulse"))
-    print(OutputFormatter.dim("AI Workstation Cleanup — Safe, Preview-First"))
+    print(OutputFormatter.bold("✨") + " " + OutputFormatter.bold("Cleaning Workstation"))
+    print(OutputFormatter.dim("Safely reclaiming space from caches, logs, and old artifacts."))
     print()
 
     // Phase 1: Scan
     let spinner = OutputFormatter.Spinner(message: "Scanning your AI workstation...")
     spinner.start()
 
-    let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers]
+    let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers, .browser]
     let config = CleanupConfig(profiles: allProfiles)
     let plan = CleanupEngine().scan(config: config)
 
@@ -138,12 +165,16 @@ private func runUnified() -> Int32 {
 
     print()
     print(OutputFormatter.actionFooter([
-        "Run 'pulse' to clean again",
+        "Run 'pulse' to return to menu",
         "Run 'pulse artifacts' to check project junk",
         "Run 'pulse audit models' to check AI model storage",
     ]))
 
     return result.failureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE
+}
+
+private func runUnified() -> Int32 {
+    return runMenu()
 }
 
 // MARK: - Command Dispatch
