@@ -19,29 +19,36 @@ private func autoJsonArgs(_ args: [String]) -> [String] {
 // MARK: - Unified Pulse Runner
 
 private func runMenu() -> Int32 {
-    print(Usage.menuScreen())
-    print()
-    print(OutputFormatter.bold("Choice:"), terminator: " ")
-    fflush(stdout)
+    while true {
+        print(Usage.menuScreen())
+        print()
+        print(OutputFormatter.bold("Choice:"), terminator: " ")
+        fflush(stdout)
 
-    let input = (readLine() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let input = (readLine() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-    switch input {
-    case "1": return runCleanWorkstation()
-    case "2": return AnalyzeCommand.run([])
-    case "3": return CleanCommand.run(["--profile", "browser"])
-    case "4": return CleanCommand.run(["--profile", "docker"])
-    case "5": return AuditCommand.run(["models"])
-    case "6": return DoctorCommand.run([])
-    case "q", "quit", "exit":
-        print(OutputFormatter.dim("Exited Pulse. Happy Coding!"))
-        return EXIT_SUCCESS
-    case "h", "help", "?":
-        print(Usage.help())
-        return EXIT_SUCCESS
-    default:
-        print(OutputFormatter.red("Error: Unknown command '\(input)'"))
-        return runMenu()
+        switch input {
+        case "1": runCleanWorkstation()
+        case "2": AnalyzeCommand.run([])
+        case "3": CleanCommand.run(["--profile", "browser"])
+        case "4": CleanCommand.run(["--profile", "docker"])
+        case "5": AuditCommand.run(["models"])
+        case "6": DoctorCommand.run([])
+        case "q", "quit", "exit":
+            print(OutputFormatter.dim("Exited Pulse. Happy Coding!"))
+            return EXIT_SUCCESS
+        case "h", "help", "?":
+            print(Usage.help())
+        default:
+            print(OutputFormatter.red("Error: Unknown command '\(input)'"))
+        }
+        
+        print()
+        print(OutputFormatter.dim("Press Enter to continue..."), terminator: " ")
+        fflush(stdout)
+        _ = readLine()
+        print("\033[A\033[2K\033[A\033[2K", terminator: "") // Clear the prompt line to keep TUI clean
+        fflush(stdout)
     }
 }
 
@@ -55,7 +62,7 @@ private func runCleanWorkstation() -> Int32 {
     let spinner = OutputFormatter.Spinner(message: "Scanning your AI workstation...")
     spinner.start()
 
-    let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers, .browser]
+    let allProfiles: Set<CleanupProfile> = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers, .browser, .docker]
     let config = CleanupConfig(profiles: allProfiles)
     let plan = CleanupEngine().scan(config: config)
 

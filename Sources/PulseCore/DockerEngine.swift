@@ -29,6 +29,23 @@ public struct DockerEngine {
     }
 
     public func scan() -> CleanupPlan {
+        // Check if docker CLI is available
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        task.arguments = ["which", "docker"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            if task.terminationStatus != 0 {
+                // Docker not found, return empty plan
+                return CleanupPlan(items: [], totalSizeMB: 0)
+            }
+        } catch {
+            return CleanupPlan(items: [], totalSizeMB: 0)
+        }
+
         let scanner = DirectoryScanner()
         var items: [CleanupPlan.CleanupItem] = []
 

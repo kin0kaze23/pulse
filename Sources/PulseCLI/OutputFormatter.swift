@@ -225,6 +225,33 @@ enum OutputFormatter {
     static func actionFooter(_ items: [String]) -> String {
         items.map { item(arrow, dim($0)) }.joined(separator: "\n")
     }
+
+    static func headerBox(title: String, lines: [String]) -> String {
+        guard isTTY else {
+            return ([bold(title)] + lines).joined(separator: "\n")
+        }
+        
+        let content = lines.isEmpty ? [""] : lines
+        let width = max(title.count + 4, content.map { $0.count }.max() ?? 0)
+        let innerWidth = max(width, 28)
+        
+        let topTitle = " \(title) "
+        // Inverted cyan background for premium feel
+        let topLine = bold("\u{001B}[46;30m" + topTitle + "\u{001B}[0m") + String(repeating: " ", count: max(0, innerWidth - topTitle.count))
+        let body = content.map { line in
+            let padded = line.padding(toLength: innerWidth, withPad: " ", startingAt: 0)
+            return " " + padded + " "
+        }
+        let bottom = String(repeating: " ", count: innerWidth)
+        
+        let box = ([topLine] + body + [bottom]).joined(separator: "\n")
+        // Wrap in cyan box
+        return """
+        \(cyan("╭") + String(repeating: cyan("─"), count: innerWidth + 2) + cyan("╮"))
+        \(box)
+        \(cyan("╰") + String(repeating: cyan("─"), count: innerWidth + 2) + cyan("╯"))
+        """
+    }
 }
 
 // MARK: - Usage

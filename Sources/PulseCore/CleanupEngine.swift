@@ -76,6 +76,18 @@ public struct CleanupEngine {
             items.append(contentsOf: cursorPlan.items)
         }
 
+        if config.profiles.contains(.browser) {
+            let browser = BrowserEngine()
+            let browserPlan = browser.scan()
+            items.append(contentsOf: browserPlan.items)
+        }
+
+        if config.profiles.contains(.docker) {
+            let docker = DockerEngine()
+            let dockerPlan = docker.scan()
+            items.append(contentsOf: dockerPlan.items)
+        }
+
         let totalSizeMB = items.reduce(0) { $0 + $1.sizeMB }
         return CleanupPlan(items: items, totalSizeMB: totalSizeMB)
     }
