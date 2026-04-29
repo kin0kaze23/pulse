@@ -83,7 +83,7 @@ pulse clean --profile xcode --apply
 
 | Command | Description | JSON |
 |---------|-------------|------|
-| `pulse analyze` | Scan developer and AI-workstation caches (Xcode, Homebrew, Node, Python, Bun, Rust, Claude, Cursor, installers) | ✅ |
+| `pulse analyze` | Scan developer and AI-workstation caches (Xcode, Homebrew, Node, Python, Bun, Rust, Claude, Cursor, installers, browser, docker) | ✅ |
 | `pulse scan` | Friendly alias for `pulse analyze` | ✅ |
 | `pulse artifacts` | Scan project build artifacts (node_modules, .build, target, venv, etc.) | ✅ |
 | `pulse audit` | Scan dev environment (stale simulators, orphaned taps, dead symlinks, old toolchains) | ✅ |
@@ -121,6 +121,8 @@ pulse audit | jq '.criticalCount'   # 0
 | `claude` | Claude Code logs, caches, transcripts, session artifacts | File deletion |
 | `cursor` | Cursor caches, logs, extension caches, workspace storage | File deletion |
 | `installers` | Old `.dmg`, `.pkg`, `.zip`, `.tar.gz` installers in Downloads/Desktop | File deletion |
+| `browser` | Chrome, Edge, and Safari caches | File deletion |
+| `docker` | Docker containers and unused images | `docker system prune` |
 
 ### Recommended user flow
 

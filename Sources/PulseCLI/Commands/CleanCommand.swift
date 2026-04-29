@@ -22,6 +22,8 @@ enum CleanCommand {
         "claude": .claude,
         "cursor": .cursor,
         "installers": .installers,
+        "browser": .browser,
+        "docker": .docker,
     ]
 
     // MARK: - Run
@@ -133,7 +135,7 @@ enum CleanCommand {
         if let profile = profile {
             profiles = [profile]
         } else {
-            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers]
+            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers, .browser, .docker]
         }
 
         let config = CleanupConfig(profiles: profiles)
@@ -440,7 +442,7 @@ enum CleanCommand {
             profiles = [profile]
             profileLabel = profile.rawValue
         } else {
-            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers]
+            profiles = [.xcode, .homebrew, .node, .python, .bun, .rust, .claude, .cursor, .installers, .browser, .docker]
             profileLabel = "all profiles"
         }
 
