@@ -57,6 +57,25 @@ enum OutputFormatter {
     static let dot = dim("•")
     static let trash = "🗑"
     static let sparkles = "✨"
+    static let rocket = "🚀"
+    static let target = "🎯"
+    static let shield = "🛡"
+    static let chart = "📊"
+    
+    // MARK: - Decorative Elements
+    
+    static func divider(_ char: String = "─", count: Int = 60) -> String {
+        dim(String(repeating: char, count: count))
+    }
+    
+    static func headerBanner() -> String {
+        """
+        \(green("╔") + String(repeating: green("═"), count: 58) + green("╗"))
+        \(dim("║"))  \(bold(green("PULSE")))  \(dim("AI Workstation Optimization"))                            \(dim("║"))
+        \(dim("║"))  \(dim("Safe cleanup for macOS developers"))                                     \(dim("║"))
+        \(green("╚") + String(repeating: green("═"), count: 58) + green("╝"))
+        """
+    }
 
     // MARK: - Helpers
 
@@ -291,19 +310,18 @@ enum Usage {
 
     static func menuScreen() -> String {
         return """
-        \(OutputFormatter.bold(BuildVersion.cliString()))
-        \(OutputFormatter.dim("AI Workstation Cleanup — Safe, Preview-First"))
+        \(OutputFormatter.headerBanner())
 
-        \(OutputFormatter.section("✨ Top Commands"))
-        \(OutputFormatter.item(OutputFormatter.cyan("1"), "Clean Workstation"))
-        \(OutputFormatter.item(OutputFormatter.cyan("2"), "Analyze Space"))
-        \(OutputFormatter.item(OutputFormatter.cyan("3"), "Clean Browser Cache"))
-        \(OutputFormatter.item(OutputFormatter.cyan("4"), "Clean Docker"))
-        \(OutputFormatter.item(OutputFormatter.cyan("5"), "Audit AI Models"))
-        \(OutputFormatter.item(OutputFormatter.cyan("6"), "Check Health (Doctor)"))
+        \(OutputFormatter.section("🚀 Quick Actions"))
+        \(OutputFormatter.item(OutputFormatter.cyan("1"), "\(OutputFormatter.bold("Clean Workstation"))      \(OutputFormatter.dim("Full system cleanup"))"))
+        \(OutputFormatter.item(OutputFormatter.cyan("2"), "\(OutputFormatter.bold("Analyze Space"))          \(OutputFormatter.dim("See what's using space"))"))
+        \(OutputFormatter.item(OutputFormatter.cyan("3"), "\(OutputFormatter.bold("Browser Cleanup"))        \(OutputFormatter.dim("Chrome, Edge, Safari"))"))
+        \(OutputFormatter.item(OutputFormatter.cyan("4"), "\(OutputFormatter.bold("Docker Cleanup"))         \(OutputFormatter.dim("Containers & images"))"))
+        \(OutputFormatter.item(OutputFormatter.cyan("5"), "\(OutputFormatter.bold("AI Models Audit"))        \(OutputFormatter.dim("Ollama, LM Studio"))"))
+        \(OutputFormatter.item(OutputFormatter.cyan("6"), "\(OutputFormatter.bold("System Health"))          \(OutputFormatter.dim("Diagnostics & checks"))"))
 
-        \(OutputFormatter.section("Input"))
-        \(OutputFormatter.dim("  Select a command (1-6) or type 'q' to quit"))
+        \(OutputFormatter.divider())
+        \(OutputFormatter.item(OutputFormatter.info, OutputFormatter.dim("Type a number (1-6) and press Enter, or 'q' to quit")))
         """
     }
 
