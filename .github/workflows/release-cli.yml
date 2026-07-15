@@ -129,7 +129,7 @@ jobs:
           echo "SHA256=$(shasum -a 256 pulse-universal.zip | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/pulse-arm64.zip
