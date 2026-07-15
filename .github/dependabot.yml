@@ -21,9 +21,10 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      github-actions:
-        patterns:
-          - "*"
+      github-actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 3
     labels:
       - "dependencies"
