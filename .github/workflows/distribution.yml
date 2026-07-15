@@ -45,7 +45,7 @@ jobs:
           xcode-version: '15.0'
 
       - name: Import Developer ID Certificate
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.DEVELOPER_ID_CERTIFICATE }}
           p12-password: ${{ secrets.DEVELOPER_ID_PASSWORD }}
